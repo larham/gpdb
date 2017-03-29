@@ -1,20 +1,24 @@
 package backup
 
 import (
+	"backup_restore/db"
 	"backup_restore/utils"
 	"fmt"
 	"os"
 )
 
-var connection *utils.DBConn
+var connection *db.DBConn
 
-func SetUp() {
-	connection = utils.NewDBConn("")
+func SetUp() *db.DBConn {
+	connection = db.NewDBConn("", "", 0, "localhost")
 	err := connection.Connect()
+	//fmt.Printf("got err: %v\n", err)
 	utils.CheckError(err)
+	fmt.Println("Got through setup")
+	return connection
 }
 
-func DoBackup() {
+func DoBackup(connection *db.DBConn) {
 	fmt.Println("The current time is", utils.CurrentTimestamp())
 	rows, err := connection.GetRows("select schemaname,tablename from pg_tables")
 	utils.CheckError(err)

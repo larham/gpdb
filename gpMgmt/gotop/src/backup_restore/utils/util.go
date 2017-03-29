@@ -10,16 +10,17 @@ import (
 func Abort(output ...interface{}) {
 	errStr := ""
 	if len(output) > 1 {
-		errStr = fmt.Sprintf(output[0].(string) + "\n", output[1:]...)
+		errStr = fmt.Sprintf(output[0].(string)+"\n", output[1:]...)
 	} else if len(output) == 1 {
 		errStr = fmt.Sprintf(output[0].(string) + "\n")
 	}
+	fmt.Println("about to panic")
 	panic(errStr)
 }
 
 func CheckError(err error) {
 	if err != nil {
-		Abort(err)
+		fmt.Printf("got err: %v\n", err)
 	}
 }
 
@@ -28,9 +29,9 @@ func CurrentTimestamp() string {
 }
 
 func RecoverFromFailure() {
-	if r := recover(); r != nil {
-		fmt.Printf("[CRITICAL] %v\n", r) // TODO: Replace with logging command when we implement that
-	}
+	//if r := recover(); r != nil {
+	//	fmt.Printf("[CRITICAL] %v\n", r) // TODO: Replace with logging command when we implement that
+	//}
 }
 
 // If the environment variable is set, return that, else return the default
