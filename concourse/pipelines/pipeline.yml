@@ -1,4 +1,14 @@
 ## ======================================================================
+## resource types
+## ======================================================================
+
+resource_types:
+- name: terraform
+  type: docker-image
+  source:
+    repository: ljfranklin/terraform-resource
+
+## ======================================================================
 ## resources
 ## ======================================================================
 
@@ -294,6 +304,21 @@ resources:
     region_name: {{aws-region}}
     secret_access_key: {{bucket-secret-access-key}}
     regexp: deliverables/greenplum-db-(.*)-behave.tar.gz
+
+- name: terraform
+  type: terraform
+  source:
+    env:
+      AWS_ACCESS_KEY_ID: {{vm-provisioner-access-key-id}}
+      AWS_SECRET_ACCESS_KEY: {{vm-provisioner-secret-access-key}}
+    storage:
+#    todo ok to reuse this bucket for terraform items?
+      access_key_id: {{bucket-access-key-id}}
+      secret_access_key: {{bucket-secret-access-key}}
+#      todo change name "gpdb-terraform-test"
+      bucket: gpdb-terraform-test
+      bucket_path: aws/pipeline-resource
+      region_name: {{aws-region}}
 
 - name: nightly-trigger
   type: time
@@ -663,6 +688,60 @@ jobs:
     image: centos-gpdb-dev-6
     params:
       BEHAVE_TAGS: gppkg
+
+- name: MM_gppkg_multihost
+  max_in_flight: 1
+  plan:
+  - aggregate:
+    - get: gpdb_src
+      params:
+        submodules:
+        - gpMgmt/bin/pythonSrc/ext
+      passed: [compile_gpdb_centos6]
+    - get: bin_gpdb
+      resource: bin_gpdb_centos6
+      passed: [compile_gpdb_centos6]
+      trigger: true
+    - get: centos-gpdb-dev-6
+  - put: terraform
+    params:
+      action: create
+      delete_on_failure: true
+      generate_random_name: true
+      terraform_source: gpdb_src/ci/terraform_provisioning/aws/dynamic/
+      vars: &terraform_aws_specs
+        aws_instance-node-count: 2
+        aws_instance-node-instance_type: r3.xlarge
+        aws_region: {{aws-region}}
+  # output of this generate_env_files task is input to subsequent tasks below
+  - task: generate_env_files
+    file: gpdb_src/ci/terraform_provisioning/generate_env_files.yml
+    image: centos-gpdb-dev-6
+    on_failure: &destroy_terraform_on_failure
+      put: terraform
+      params: &terraform_destroy_params
+        action: destroy
+        env_name_file: terraform/name
+        terraform_source: gpdb_src/ci/terraform_provisioning/aws/dynamic/
+        vars: *terraform_aws_specs
+      get_params:
+        action: destroy
+  - task: install_gpdb
+    file: gpdb_src/ci/terraform_provisioning/install_gpdb.yml
+    image: centos-gpdb-dev-6
+    on_failure: *destroy_terraform_on_failure
+  - task: test_cluster
+    file: gpdb_src/ci/terraform_provisioning/test_cluster.yml
+    image: centos-gpdb-dev-6
+    on_failure: *destroy_terraform_on_failure
+  - task: gppkg
+    file: gpdb_src/concourse/tasks/gppkg_behave.yml
+    image: centos-gpdb-dev-6
+    on_failure: *destroy_terraform_on_failure
+  - put: terraform
+    params: *terraform_destroy_params
+    get_params:
+      action: destroy
 
 - name: MM_pt-rebuild
   plan:

@@ -1,0 +1,9 @@
+---
+platform: linux
+
+inputs:
+- name: gpdb_src
+- name: cluster_env_files
+
+run:
+  path: gpdb_src/concourse/scripts/gppkg_behave.sh
