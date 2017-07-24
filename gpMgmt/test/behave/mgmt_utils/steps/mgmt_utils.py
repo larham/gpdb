@@ -146,10 +146,32 @@ def impl(context, scenario_number):
 
 
 @given('the database is running')
+@then('the database is running')
 def impl(context):
     start_database_if_not_started(context)
     if has_exception(context):
         raise context.exception
+
+@given('the database is initialized with checksum "{checksum_toggle}"')
+def impl(context, checksum_toggle):
+    stop_database(context)
+
+    cmd = 'cd ../gpAux/gpdemo; '
+    cmd += 'env EXTRA_CONFIG="HEAP_CHECKSUM=%s" make' % checksum_toggle
+    run_command(context, cmd)
+
+    if context.ret_code != 0:
+        raise Exception('%s' % context.error_message)
+
+@when('the database is initialized with default configuration')
+def impl(context):
+
+    cmd = 'cd ../gpAux/gpdemo; '
+    cmd += 'make'
+    run_command(context, cmd)
+
+    if context.ret_code != 0:
+        raise Exception('%s' % context.error_message)
 
 
 @given('the database is not running')

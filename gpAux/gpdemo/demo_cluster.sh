@@ -292,6 +292,10 @@ if [ "${WITH_MIRRORS}" == "true" ]; then
 	EOF
 fi
 
+if [ ! -z "${EXTRA_CONFIG}" ]; then
+  echo ${EXTRA_CONFIG} >> $CLUSTER_CONFIG
+fi
+
 cat >> $CLUSTER_CONFIG <<-EOF
 
 	# Path for Greenplum mgmt utils and Greenplum binaries
