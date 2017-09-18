@@ -1,5 +1,4 @@
 import imp
-import logging
 import os
 import sys
 
@@ -7,6 +6,7 @@ from mock import *
 
 from gp_unittest import *
 from gppylib.gpcatalog import GPCatalogTable
+
 
 class GpCheckCatTestCase(GpTestCase):
     def setUp(self):
@@ -35,19 +35,19 @@ class GpCheckCatTestCase(GpTestCase):
 
         issues_list = dict()
         issues_list['cat1'] = [('pg_class', ['pkey1', 'pkey2'], [('r1', 'r2'), ('r3', 'r4')]),
-                              ('arbitrary_catalog_table', ['pkey1', 'pkey2'], [('r1', 'r2'), ('r3', 'r4')])]
+                               ('arbitrary_catalog_table', ['pkey1', 'pkey2'], [('r1', 'r2'), ('r3', 'r4')])]
         issues_list['cat2'] = [('pg_type', ['pkey1', 'pkey2'], [('r1', 'r2'), ('r3', 'r4')]),
                                ('arbitrary_catalog_table', ['pkey1', 'pkey2'], [('r1', 'r2'), ('r3', 'r4')])]
         self.foreign_key_check.runCheck.return_value = issues_list
 
-        self.subject.GV.cfg = {0:dict(hostname='host0', port=123, id=1, address='123', datadir='dir', content=-1, dbid=0),
-                               1:dict(hostname='host1', port=123, id=1, address='123', datadir='dir', content=1, dbid=1)}
+        self.subject.GV.cfg = {
+            0: dict(hostname='host0', port=123, id=1, address='123', datadir='dir', content=-1, dbid=0),
+            1: dict(hostname='host1', port=123, id=1, address='123', datadir='dir', content=1, dbid=1)}
         self.subject.GV.checkStatus = True
         self.subject.GV.foreignKeyStatus = True
         self.subject.GV.missingEntryStatus = True
         self.subject.setError = Mock()
         self.subject.print_repair_issues = Mock()
-
 
     def test_running_unknown_check__raises_exception(self):
         with self.assertRaises(LookupError):
@@ -75,8 +75,10 @@ class GpCheckCatTestCase(GpTestCase):
 
     def test_running_unique_index_violation_check__when_violations_are_found__fails_the_check(self):
         self.unique_index_violation_check.runCheck.return_value = [
-            dict(table_oid=123, table_name='stephen_table', index_name='finger', column_names='c1, c2', violated_segments=[-1,8]),
-            dict(table_oid=456, table_name='larry_table', index_name='stock', column_names='c1', violated_segments=[-1]),
+            dict(table_oid=123, table_name='stephen_table', index_name='finger', column_names='c1, c2',
+                 violated_segments=[-1, 8]),
+            dict(table_oid=456, table_name='larry_table', index_name='stock', column_names='c1',
+                 violated_segments=[-1]),
         ]
 
         self.subject.runOneCheck('unique_index_violation')
@@ -86,8 +88,10 @@ class GpCheckCatTestCase(GpTestCase):
 
     def test_checkcat_report__after_running_unique_index_violations_check__reports_violations(self):
         self.unique_index_violation_check.runCheck.return_value = [
-            dict(table_oid=123, table_name='stephen_table', index_name='finger', column_names='c1, c2', violated_segments=[-1,8]),
-            dict(table_oid=456, table_name='larry_table', index_name='stock', column_names='c1', violated_segments=[-1]),
+            dict(table_oid=123, table_name='stephen_table', index_name='finger', column_names='c1, c2',
+                 violated_segments=[-1, 8]),
+            dict(table_oid=456, table_name='larry_table', index_name='stock', column_names='c1',
+                 violated_segments=[-1]),
         ]
         self.subject.runOneCheck('unique_index_violation')
 
@@ -139,10 +143,12 @@ class GpCheckCatTestCase(GpTestCase):
     def test_truncate_batch_size(self, mock_log, mock_gpcheckcat, mock_sys_exit):
         self.subject.GV.opt['-B'] = 300  # override the setting from available memory
         # setup conditions for 50 primaries and plenty of RAM such that max threads > 50
-        primaries = [dict(hostname='host0', port=123, id=1, address='123', datadir='dir', content=-1, dbid=0, isprimary='t')]
+        primaries = [
+            dict(hostname='host0', port=123, id=1, address='123', datadir='dir', content=-1, dbid=0, isprimary='t')]
 
         for i in range(1, 50):
-            primaries.append(dict(hostname='host0', port=123, id=1, address='123', datadir='dir', content=1, dbid=i, isprimary='t'))
+            primaries.append(
+                dict(hostname='host0', port=123, id=1, address='123', datadir='dir', content=1, dbid=i, isprimary='t'))
         self.db_connection.query.return_value.getresult.return_value = [['4.3']]
         self.db_connection.query.return_value.dictresult.return_value = primaries
 
@@ -154,7 +160,7 @@ class GpCheckCatTestCase(GpTestCase):
             self.subject.main()
             self.assertEquals(self.subject.GV.opt['-B'], len(primaries))
 
-        #mock_log.assert_any_call(50, "Truncated batch size to number of primaries: 50")
+        # mock_log.assert_any_call(50, "Truncated batch size to number of primaries: 50")
         # I am confused that .assert_any_call() did not seem to work as expected --Larry
         last_call = mock_log.call_args_list[0][0][2]
         self.assertEquals(last_call, "Truncated batch size to number of primaries: 50")
@@ -162,7 +168,7 @@ class GpCheckCatTestCase(GpTestCase):
     @patch('gpcheckcat_modules.repair.Repair', return_value=Mock())
     @patch('gpcheckcat_modules.repair.Repair.create_repair_for_extra_missing', return_value="/tmp")
     def test_do_repair_for_extra__issues_repair(self, mock1, mock2):
-        issues = {("pg_class", "oid"):"extra"}
+        issues = {("pg_class", "oid"): "extra"}
         self.subject.GV.opt['-E'] = True
         self.subject.do_repair_for_extra(issues)
         self.subject.setError.assert_any_call(self.subject.ERROR_REMOVE)
@@ -170,15 +176,16 @@ class GpCheckCatTestCase(GpTestCase):
 
     @patch('gpcheckcat.removeFastSequence')
     @patch('gpcheckcat.processForeignKeyResult')
-    def test_checkForeignKey__with_arg_gp_fastsequence(self, process_foreign_key_mock,fast_seq_mock):
+    def test_checkForeignKey__with_arg_gp_fastsequence(self, process_foreign_key_mock, fast_seq_mock):
         cat_mock = Mock()
         self.subject.GV.catalog = cat_mock
 
         gp_fastsequence_issue = dict()
         gp_fastsequence_issue['gp_fastsequence'] = [('pg_class', ['pkey1', 'pkey2'], [('r1', 'r2'), ('r3', 'r4')]),
-                               ('arbitrary_catalog_table', ['pkey1', 'pkey2'], [('r1', 'r2'), ('r3', 'r4')])]
+                                                    ('arbitrary_catalog_table', ['pkey1', 'pkey2'],
+                                                     [('r1', 'r2'), ('r3', 'r4')])]
         gp_fastsequence_issue['cat2'] = [('pg_type', ['pkey1', 'pkey2'], [('r1', 'r2'), ('r3', 'r4')]),
-                               ('arbitrary_catalog_table', ['pkey1', 'pkey2'], [('r1', 'r2'), ('r3', 'r4')])]
+                                         ('arbitrary_catalog_table', ['pkey1', 'pkey2'], [('r1', 'r2'), ('r3', 'r4')])]
         self.foreign_key_check.runCheck.return_value = gp_fastsequence_issue
 
         cat_tables = ["input1", "input2"]
@@ -229,10 +236,12 @@ class GpCheckCatTestCase(GpTestCase):
         cat_obj_mock = Mock()
         self.subject.getCatObj = gpcat_class_mock
         self.subject.getCatObj.return_value = cat_obj_mock
-        primaries = [dict(hostname='host0', port=123, id=1, address='123', datadir='dir', content=-1, dbid=0, isprimary='t')]
+        primaries = [
+            dict(hostname='host0', port=123, id=1, address='123', datadir='dir', content=-1, dbid=0, isprimary='t')]
 
         for i in range(1, 50):
-            primaries.append(dict(hostname='host0', port=123, id=1, address='123', datadir='dir', content=1, dbid=i, isprimary='t'))
+            primaries.append(
+                dict(hostname='host0', port=123, id=1, address='123', datadir='dir', content=1, dbid=i, isprimary='t'))
         self.db_connection.query.return_value.getresult.return_value = [['4.3']]
         self.db_connection.query.return_value.dictresult.return_value = primaries
 
@@ -275,8 +284,7 @@ class GpCheckCatTestCase(GpTestCase):
         self.assertFalse(self.subject.GV.checkStatus)
         self.subject.setError.assert_called_once_with(self.subject.ERROR_NOREPAIR)
 
-
-    @patch('gpcheckcat.checkTableMissingEntry', return_value = None)
+    @patch('gpcheckcat.checkTableMissingEntry', return_value=None)
     def test_checkMissingEntry__no_issues(self, mock1):
         cat_mock = Mock()
         cat_tables = ["input1", "input2"]
@@ -288,8 +296,8 @@ class GpCheckCatTestCase(GpTestCase):
         self.assertTrue(self.subject.GV.missingEntryStatus)
         self.subject.setError.assert_not_called()
 
-    @patch('gpcheckcat.checkTableMissingEntry', return_value= {("pg_clas", "oid"): "extra"})
-    @patch('gpcheckcat.getPrimaryKeyColumn', return_value = (None,"oid"))
+    @patch('gpcheckcat.checkTableMissingEntry', return_value={("pg_clas", "oid"): "extra"})
+    @patch('gpcheckcat.getPrimaryKeyColumn', return_value=(None, "oid"))
     def test_checkMissingEntry__uses_oid(self, mock1, mock2):
 
         self.subject.GV.opt['-E'] = True
@@ -304,8 +312,8 @@ class GpCheckCatTestCase(GpTestCase):
         self.assertEquals(aTable.getPrimaryKey.call_count, 1)
         self.subject.setError.assert_called_once_with(self.subject.ERROR_REMOVE)
 
-    @patch('gpcheckcat.checkTableMissingEntry', return_value= {("pg_operator", "typename, typenamespace"): "extra"})
-    @patch('gpcheckcat.getPrimaryKeyColumn', return_value = (None,None))
+    @patch('gpcheckcat.checkTableMissingEntry', return_value={("pg_operator", "typename, typenamespace"): "extra"})
+    @patch('gpcheckcat.getPrimaryKeyColumn', return_value=(None, None))
     def test_checkMissingEntry__uses_pkeys(self, mock1, mock2):
 
         self.subject.GV.opt['-E'] = True
@@ -359,6 +367,7 @@ class GpCheckCatTestCase(GpTestCase):
             self.assertTrue(self.num_batches > 0)
             if self.is_remainder_case:
                 self.assertTrue(self.num_joins < BATCH_SIZE)
+
 
 if __name__ == '__main__':
     run_tests()

@@ -53,7 +53,7 @@ logger = get_default_logger()
 sysinfo = SystemInfo(logger)
 
 parallelism = get_max_available_thread_count()
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 
 ################
 def parse_int(val):
@@ -78,6 +78,7 @@ ERROR_NOREPAIR = 3
 
 FIRST_NORMAL_OID = 16384
 PG_CATALOG_OID = 11
+
 
 def setError(level):
     '''
@@ -211,7 +212,7 @@ def getalldbs():
     """
     db = connect()
     curs = db.query('''
-    select datname from pg_database where datallowconn order by datname ''')
+    SELECT datname FROM pg_database WHERE datallowconn ORDER BY datname ''')
     row = curs.getresult()
     return row
 
@@ -439,12 +440,12 @@ def getGPConfiguration():
     # note that in 4.0, sql commands cannot be run against the segment mirrors directly
     # so we filter out non-primary segment databases in the query
     qry = '''
-          SELECT content, preferred_role = 'p' as definedprimary,
-                 dbid, role = 'p' as isprimary, hostname, address, port,
-                 fselocation as datadir
-            FROM gp_segment_configuration JOIN pg_filespace_entry on (dbid = fsedbid)
-           WHERE fsefsoid = (select oid from pg_filespace where fsname='pg_system')
-             AND (role = 'p' or content < 0 )
+          SELECT content, preferred_role = 'p' AS definedprimary,
+                 dbid, role = 'p' AS isprimary, hostname, address, port,
+                 fselocation AS datadir
+            FROM gp_segment_configuration JOIN pg_filespace_entry ON (dbid = fsedbid)
+           WHERE fsefsoid = (SELECT oid FROM pg_filespace WHERE fsname='pg_system')
+             AND (role = 'p' OR content < 0 )
           '''
     curs = db.query(qry)
     for row in curs.dictresult():
@@ -454,16 +455,17 @@ def getGPConfiguration():
     db.close()
     return cfg
 
+
 def checkDistribPolicy():
     logger.info('-----------------------------------')
     logger.info('Checking constraints on randomly distributed tables')
     qry = '''
-    select n.nspname, rel.relname, pk.conname as constraint
-    from   pg_constraint pk
-      join pg_class rel on (pk.conrelid = rel.oid)
-      join pg_namespace n on (rel.relnamespace = n.oid)
-      join gp_distribution_policy d on (rel.oid = d.localoid)
-    where pk.contype in('p', 'u') and d.attrnums is null
+    SELECT n.nspname, rel.relname, pk.conname AS constraint
+    FROM   pg_constraint pk
+      JOIN pg_class rel ON (pk.conrelid = rel.oid)
+      JOIN pg_namespace n ON (rel.relnamespace = n.oid)
+      JOIN gp_distribution_policy d ON (rel.oid = d.localoid)
+    WHERE pk.contype IN('p', 'u') AND d.attrnums IS NULL
     '''
 
     db = connect2(GV.cfg[1])
@@ -499,14 +501,14 @@ def checkDistribPolicy():
     # sure that the set of distribution columns is a left subset of the
     # constraint.
     qry = '''
-    select  n.nspname, rel.relname, pk.conname as constraint
-    from    pg_constraint pk
-      join  pg_class rel on (pk.conrelid = rel.oid)
-      join  pg_namespace n on (rel.relnamespace = n.oid)
-      join  gp_distribution_policy d on (rel.oid = d.localoid)
-    where pk.contype in ('p', 'u') and
-          (d.attrnums is null or not
-           d.attrnums operator(pg_catalog.<@) pk.conkey)
+    SELECT  n.nspname, rel.relname, pk.conname AS constraint
+    FROM    pg_constraint pk
+      JOIN  pg_class rel ON (pk.conrelid = rel.oid)
+      JOIN  pg_namespace n ON (rel.relnamespace = n.oid)
+      JOIN  gp_distribution_policy d ON (rel.oid = d.localoid)
+    WHERE pk.contype IN ('p', 'u') AND
+          (d.attrnums IS NULL OR NOT
+           d.attrnums OPERATOR(pg_catalog.<@) pk.conkey)
     '''
     try:
         curs = db.query(qry)
@@ -535,6 +537,7 @@ def checkDistribPolicy():
 
     checkConstraintsRepair()
 
+
 #############
 def checkPartitionIntegrity():
     #
@@ -545,13 +548,13 @@ def checkPartitionIntegrity():
     err = []
     db = connect()
     qry = '''
-    select distinct
-           quote_ident(n.nspname) || '.' || quote_ident(c.relname) as parname
-    from   pg_partition_rule r1
-      join pg_partition_rule r2 on (r1.oid = r2.parparentrule)
-      join pg_class c on (r1.parchildrelid = c.oid)
-      join pg_namespace n on (c.relnamespace = n.oid)
-    where  r1.parchildrelid <> 0 and r2.parchildrelid <> 0
+    SELECT DISTINCT
+           quote_ident(n.nspname) || '.' || quote_ident(c.relname) AS parname
+    FROM   pg_partition_rule r1
+      JOIN pg_partition_rule r2 ON (r1.oid = r2.parparentrule)
+      JOIN pg_class c ON (r1.parchildrelid = c.oid)
+      JOIN pg_namespace n ON (c.relnamespace = n.oid)
+    WHERE  r1.parchildrelid <> 0 AND r2.parchildrelid <> 0
     '''
     try:
         curs = db.query(qry)
@@ -583,13 +586,13 @@ def checkPartitionIntegrity():
 
     # MPP-9283: look for partitions create "with oids".
     qry = '''
-    select n1.nspname, pc.relname, pc.oid
-    from   pg_class pc, pg_partition_rule pr, pg_namespace n1
-    where  pr.parchildrelid = pc.oid and pc.relnamespace = n1.oid and pc.relhasoids
-    union
-    select n1.nspname, pc.relname, pc.oid
-    from   pg_class pc, pg_partition pp, pg_namespace n1
-    where  pp.parrelid = pc.oid and pc.relnamespace = n1.oid and pc.relhasoids
+    SELECT n1.nspname, pc.relname, pc.oid
+    FROM   pg_class pc, pg_partition_rule pr, pg_namespace n1
+    WHERE  pr.parchildrelid = pc.oid AND pc.relnamespace = n1.oid AND pc.relhasoids
+    UNION
+    SELECT n1.nspname, pc.relname, pc.oid
+    FROM   pg_class pc, pg_partition pp, pg_namespace n1
+    WHERE  pp.parrelid = pc.oid AND pc.relnamespace = n1.oid AND pc.relhasoids
     '''
     try:
         curs = db.query(qry)
@@ -625,62 +628,62 @@ def checkPartitionIntegrity():
     # in gp_distribution_policy.  This is handled by unnesting both
     # distribution
     qry = '''
-    select
+    SELECT
       parrelid,
       parchildrelid,
-      d1.attrnums as parpolicy,
-      d2.attrnums as parchildpolicy
-    from
+      d1.attrnums AS parpolicy,
+      d2.attrnums AS parchildpolicy
+    FROM
       (
-        select distinct
-          coalesce(p1.parrelid, p2.parrelid)::regclass as parrelid,
-          coalesce(p1.parchildrelid, p2.parchildrelid)::regclass as parchildrelid
-        from
+        SELECT DISTINCT
+          coalesce(p1.parrelid, p2.parrelid)::REGCLASS AS parrelid,
+          coalesce(p1.parchildrelid, p2.parchildrelid)::REGCLASS AS parchildrelid
+        FROM
           (
-            select parrelid, parchildrelid, g1.attname, g1.index
-            from   pg_partition_rule pr
-                   join pg_partition p on (pr.paroid = p.oid)
-                   join (
-                     select localoid, attname, index
-                     from (
-                       select
+            SELECT parrelid, parchildrelid, g1.attname, g1.index
+            FROM   pg_partition_rule pr
+                   JOIN pg_partition p ON (pr.paroid = p.oid)
+                   JOIN (
+                     SELECT localoid, attname, index
+                     FROM (
+                       SELECT
                          localoid,
-                         unnest(attrnums) as offset,
-                         generate_series(1, array_upper(attrnums, 1)) as index
-                       from
+                         unnest(attrnums) AS offset,
+                         generate_series(1, array_upper(attrnums, 1)) AS index
+                       FROM
                          gp_distribution_policy
                       ) d
-                      join pg_attribute a on (a.attrelid = d.localoid and a.attnum = d.offset)
-                   ) g1 on (parrelid = g1.localoid)
-            where  parchildrelid != 0
+                      JOIN pg_attribute a ON (a.attrelid = d.localoid AND a.attnum = d.offset)
+                   ) g1 ON (parrelid = g1.localoid)
+            WHERE  parchildrelid != 0
           ) p1
-          full outer join
+          FULL OUTER JOIN
           (
-            select parrelid, parchildrelid, g2.attname, g2.index
-            from   pg_partition_rule pr
-                   join pg_partition p on (pr.paroid = p.oid)
-                   join (
-                     select localoid, attname, index
-                     from (
-                       select
+            SELECT parrelid, parchildrelid, g2.attname, g2.index
+            FROM   pg_partition_rule pr
+                   JOIN pg_partition p ON (pr.paroid = p.oid)
+                   JOIN (
+                     SELECT localoid, attname, index
+                     FROM (
+                       SELECT
                          localoid,
-                         unnest(attrnums) as offset,
-                         generate_series(1, array_upper(attrnums, 1)) as index
-                       from
+                         unnest(attrnums) AS offset,
+                         generate_series(1, array_upper(attrnums, 1)) AS index
+                       FROM
                          gp_distribution_policy
                       ) d
-                      join pg_attribute a on (a.attrelid = d.localoid and a.attnum = d.offset)
-                   ) g2 on (parchildrelid = g2.localoid)
-            where  parchildrelid != 0
+                      JOIN pg_attribute a ON (a.attrelid = d.localoid AND a.attnum = d.offset)
+                   ) g2 ON (parchildrelid = g2.localoid)
+            WHERE  parchildrelid != 0
           ) p2
-          on (p1.parrelid = p2.parrelid and
-              p1.parchildrelid = p2.parchildrelid and
+          ON (p1.parrelid = p2.parrelid AND
+              p1.parchildrelid = p2.parchildrelid AND
               p1.index = p2.index)
-        where p1.attname is distinct from p2.attname
+        WHERE p1.attname IS DISTINCT FROM p2.attname
       ) p
-    join gp_distribution_policy d1 on (d1.localoid = p.parrelid)
-    join gp_distribution_policy d2 on (d2.localoid = p.parchildrelid)
-    where d2.attrnums is not null
+    JOIN gp_distribution_policy d1 ON (d1.localoid = p.parrelid)
+    JOIN gp_distribution_policy d2 ON (d2.localoid = p.parchildrelid)
+    WHERE d2.attrnums IS NOT NULL
     '''
     try:
         curs = db.query(qry)
@@ -733,6 +736,7 @@ def checkPartitionIntegrity():
 
     checkPoliciesRepair()
 
+
 #############
 # A dictionary of SQL statements for checkPartitionRegularity()
 
@@ -758,26 +762,26 @@ partitionRegularityChecks = {
     # numexpected:  number of constraint occurrences expected (incl table)
     # numactual:  number of constraint occurrences observed (incl table)
     'irreg_user_constraint':
-        """select
+        """SELECT
             tableid,
             tableconname,
             contype,
             condef,
             numexpected,
             numactual
-        from
+        FROM
             (
-                select
+                SELECT
                     c.tableid,
                     c.tableconname,
                     c.contype,
                     c.condef,
                     i.tableparts + 1,
                     count(c.partid),
-                    count(distinct c.partconname)
-                from
+                    count(DISTINCT c.partconname)
+                FROM
                     (
-                        select
+                        SELECT
                             u.tableid,
                             u.conname,
                             u.contype,
@@ -785,150 +789,150 @@ partitionRegularityChecks = {
                             p.partid,
                             p.conid,
                             coalesce(p.conname)
-                        from
+                        FROM
                             (
-                                select
+                                SELECT
                                     p.tableid,
                                     c.conname,
                                     c.contype,
-                                    pg_get_constraintdef(c.oid) as condef
-                                from
+                                    pg_get_constraintdef(c.oid) AS condef
+                                FROM
                                     (
-                                        select
-                                            parrelid::regclass,
+                                        SELECT
+                                            parrelid::REGCLASS,
                                             max(parlevel)+1
-                                        from
+                                        FROM
                                             pg_partition
-                                        group by parrelid
-                                    ) as p(tableid, tabledepth) ,
+                                        GROUP BY parrelid
+                                    ) AS p(tableid, tabledepth) ,
                                     pg_constraint c
-                                where
+                                WHERE
                                     p.tableid = c.conrelid
-                            ) as u(tableid, conname, contype, condef)
-                                join
+                            ) AS u(tableid, conname, contype, condef)
+                                JOIN
                             (
-                                select
-                                    x.tableid::regclass as tableid,
-                                    c.conrelid::regclass as partid,
-                                    c.oid as conid,
+                                SELECT
+                                    x.tableid::REGCLASS AS tableid,
+                                    c.conrelid::REGCLASS AS partid,
+                                    c.oid AS conid,
                                     c.conname,
                                     c.contype,
-                                    pg_get_constraintdef(c.oid) as condef
-                                from
+                                    pg_get_constraintdef(c.oid) AS condef
+                                FROM
                                     pg_constraint c,
                                     (
-                                        select
+                                        SELECT
                                             tableid,
                                             tabledepth,
-                                            tableid::regclass partid,
-                                            0 as partdepth,
-                                            0 as partordinal,
-                                            'r'::char as partstatus
-                                        from
+                                            tableid::REGCLASS partid,
+                                            0 AS partdepth,
+                                            0 AS partordinal,
+                                            'r'::CHAR AS partstatus
+                                        FROM
                                             (
-                                                select
-                                                    parrelid::regclass,
+                                                SELECT
+                                                    parrelid::REGCLASS,
                                                     max(parlevel)+1
-                                                from
+                                                FROM
                                                     pg_partition
-                                                group by parrelid
-                                            ) as ptable(tableid, tabledepth)
-                                        union all
-                                        select
-                                            parrelid::regclass as tableid,
-                                            t.tabledepth as tabledepth,
-                                            r.parchildrelid::regclass partid,
-                                            p.parlevel + 1 as partdepth,
-                                            r.parruleord as partordinal,
-                                            case
-                                                when t.tabledepth = p.parlevel + 1 then 'l'::char
-                                                else 'i'::char
-                                            end as partstatus
-                                        from
+                                                GROUP BY parrelid
+                                            ) AS ptable(tableid, tabledepth)
+                                        UNION ALL
+                                        SELECT
+                                            parrelid::REGCLASS AS tableid,
+                                            t.tabledepth AS tabledepth,
+                                            r.parchildrelid::REGCLASS partid,
+                                            p.parlevel + 1 AS partdepth,
+                                            r.parruleord AS partordinal,
+                                            CASE
+                                                WHEN t.tabledepth = p.parlevel + 1 THEN 'l'::CHAR
+                                                ELSE 'i'::CHAR
+                                            END AS partstatus
+                                        FROM
                                             pg_partition p,
                                             pg_partition_rule r,
                                              (
-                                                select
-                                                    parrelid::regclass,
+                                                SELECT
+                                                    parrelid::REGCLASS,
                                                     max(parlevel)+1
-                                                from
+                                                FROM
                                                     pg_partition
-                                                group by parrelid
-                                            ) as t(tableid, tabledepth)
-                                        where
+                                                GROUP BY parrelid
+                                            ) AS t(tableid, tabledepth)
+                                        WHERE
                                             p.oid = r.paroid
-                                            and not p.paristemplate
-                                            and p.parrelid = t.tableid
-                                    ) as x(tableid, tabledepth, partid, partdepth, partordinal, partstatus)
-                                where
+                                            AND NOT p.paristemplate
+                                            AND p.parrelid = t.tableid
+                                    ) AS x(tableid, tabledepth, partid, partdepth, partordinal, partstatus)
+                                WHERE
                                     x.partid = c.conrelid
-                            ) as p(tableid, partid, conid, conname, contype, condef)
-                                on (
-                                    u.tableid = p.tableid and
-                                    u.contype = p.contype and
+                            ) AS p(tableid, partid, conid, conname, contype, condef)
+                                ON (
+                                    u.tableid = p.tableid AND
+                                    u.contype = p.contype AND
                                     u.condef = p.condef
                                     )
-                    ) as c(tableid, tableconname, contype, condef, partid, partconid, partconname) ,
+                    ) AS c(tableid, tableconname, contype, condef, partid, partconid, partconname) ,
                     (
-                        select
+                        SELECT
                             t.tableid,
                             t.tabledepth,
-                            n.nparts as tableparts,
+                            n.nparts AS tableparts,
                             r.nspname,
                             r.relname
-                        from
+                        FROM
                             (
-                                select
-                                    parrelid::regclass,
+                                SELECT
+                                    parrelid::REGCLASS,
                                     max(parlevel)+1
-                                from
+                                FROM
                                     pg_partition
-                                group by parrelid
-                            ) as t(tableid, tabledepth) ,
+                                GROUP BY parrelid
+                            ) AS t(tableid, tabledepth) ,
                             (
-                                select
-                                    c.oid::regclass as relid,
+                                SELECT
+                                    c.oid::REGCLASS AS relid,
                                     n.nspname,
                                     c.relname,
                                     c.relkind
-                                from
+                                FROM
                                     pg_class c,
                                     pg_namespace n
-                                where
+                                WHERE
                                     c.relnamespace = n.oid
-                            ) as r(relid, nspname, relname, relkind) ,
+                            ) AS r(relid, nspname, relname, relkind) ,
                             (
-                                select tableid, count(*)
-                                from (
-                                        select
-                                            t.tableid::regclass,
-                                            p.parchildrelid::regclass as partid
-                                        from
+                                SELECT tableid, count(*)
+                                FROM (
+                                        SELECT
+                                            t.tableid::REGCLASS,
+                                            p.parchildrelid::REGCLASS AS partid
+                                        FROM
                                             (
-                                                select pg_partition.parrelid, pg_partition.oid
-                                                from pg_partition
-                                                where not pg_partition.paristemplate
+                                                SELECT pg_partition.parrelid, pg_partition.oid
+                                                FROM pg_partition
+                                                WHERE NOT pg_partition.paristemplate
                                             ) t(tableid, partid),
                                             pg_partition_rule p
-                                        where p.paroid = t.partid
-                                    ) as contains_part(tableid, partid)
-                                group by tableid
+                                        WHERE p.paroid = t.partid
+                                    ) AS contains_part(tableid, partid)
+                                GROUP BY tableid
                             ) n(tableid, nparts)
-                        where
-                            t.tableid = r.relid and
+                        WHERE
+                            t.tableid = r.relid AND
                             t.tableid = n.tableid
-                    ) as i(tableid, tabledepth, tableparts, nspname, relname)
-                where
+                    ) AS i(tableid, tabledepth, tableparts, nspname, relname)
+                WHERE
                     c.tableid = i.tableid
-                group by
+                GROUP BY
                     c.tableid,
                     c.tableconname,
                     c.contype,
                     c.condef,
                     i.tableparts
-            ) as ptable_user_con_info(tableid, tableconname, contype, condef, numexpected, numactual, numnames)
-        where
-            contype != 'f' and -- no FK consistency in Rio
+            ) AS ptable_user_con_info(tableid, tableconname, contype, condef, numexpected, numactual, numnames)
+        WHERE
+            contype != 'f' AND -- no FK consistency in Rio
             numexpected != numactual""",
 
     # Query: irreg_sys_constraint
@@ -951,23 +955,23 @@ partitionRegularityChecks = {
     # expected:  number of constraint occurrences expected
     # actual:  number of constraint occurrences observed
     'irreg_sys_constraint':
-        """select
-            coalesce(x.partid, a.partid) as partid,
+        """SELECT
+            coalesce(x.partid, a.partid) AS partid,
             x.tableid,
             x.expected,
-            coalesce(a.actual, 0) as actual
-        from
+            coalesce(a.actual, 0) AS actual
+        FROM
             (
             {expected}
             ) x
-              full join
+              FULL JOIN
             (
             {actual}
             ) a
-              on (x.partid = a.partid)
-        where
-            x.expected != a.actual or
-            x.expected is null or
+              ON (x.partid = a.partid)
+        WHERE
+            x.expected != a.actual OR
+            x.expected IS NULL OR
             x.expected != coalesce(a.actual,0);""",
 
     # Query based on view: unenforced_constraint_info
@@ -984,190 +988,190 @@ partitionRegularityChecks = {
     # refobjid
 
     'unenforced_constraint_info':
-        """select
+        """SELECT
             c.tableid,
             c.partid,
             b.indexid,
-            c.partid::int as partoid,
-            b.indexid::int as indexoid,
+            c.partid::INT AS partoid,
+            b.indexid::INT AS indexoid,
             b.contype,
             b.conname,
             b.refobjid
-        from
+        FROM
             (
-                select
+                SELECT
                     k.tableid,
                     k.distkey,
                     k.partkey,
                     c.conid,
                     c.conname,
                     c.contype,
-                    i.indrelid::regclass,
-                    i.indkey::smallint[]
-                from
+                    i.indrelid::REGCLASS,
+                    i.indkey::SMALLINT[]
+                FROM
                     pg_index i,
                     (
-                        select
+                        SELECT
                             k.tableid,
                             d.attrcnt,
                             d.attrnums,
                             sum(k.partkeylen),
                             array_agg(k.partkey[g.g])
-                        from
+                        FROM
                             (
-                                select
-                                    p.parrelid::regclass,
+                                SELECT
+                                    p.parrelid::REGCLASS,
                                     t.tabledepth,
                                     p.parlevel,
                                     p.parnatts,
                                     p.paratts
-                                from
+                                FROM
                                     pg_partition p,
                                     (
-                                        select
-                                            parrelid::regclass,
+                                        SELECT
+                                            parrelid::REGCLASS,
                                             max(parlevel)+1
-                                        from
+                                        FROM
                                             pg_partition
-                                        group by parrelid
-                                    ) as t(tableid, tabledepth)
-                                where
-                                    p.parrelid = t.tableid and
-                                    p.paristemplate is false
-                            ) as k(tableid, tabledepth, partdepth, partkeylen, partkey) ,
-                            generate_series(0, (select max(partkeylen) from (
-                                select
-                                    p.parrelid::regclass,
+                                        GROUP BY parrelid
+                                    ) AS t(tableid, tabledepth)
+                                WHERE
+                                    p.parrelid = t.tableid AND
+                                    p.paristemplate IS FALSE
+                            ) AS k(tableid, tabledepth, partdepth, partkeylen, partkey) ,
+                            generate_series(0, (SELECT max(partkeylen) FROM (
+                                SELECT
+                                    p.parrelid::REGCLASS,
                                     t.tabledepth,
                                     p.parlevel,
                                     p.parnatts,
                                     p.paratts
-                                from
+                                FROM
                                     pg_partition p,
                                     (
-                                        select
-                                            parrelid::regclass,
+                                        SELECT
+                                            parrelid::REGCLASS,
                                             max(parlevel)+1
-                                        from
+                                        FROM
                                             pg_partition
-                                        group by parrelid
-                                    ) as t(tableid, tabledepth)
-                                where
-                                    p.parrelid = t.tableid and
-                                    p.paristemplate is false
-                            ) as partition_level(tableid, tabledepth, partdepth, partkeylen, partkey) )-1) g(g),
+                                        GROUP BY parrelid
+                                    ) AS t(tableid, tabledepth)
+                                WHERE
+                                    p.parrelid = t.tableid AND
+                                    p.paristemplate IS FALSE
+                            ) AS partition_level(tableid, tabledepth, partdepth, partkeylen, partkey) )-1) g(g),
                             (
-                                select
-                                    localoid::regclass,
+                                SELECT
+                                    localoid::REGCLASS,
                                     attrnums,
                                     coalesce(1+array_upper(attrnums,1)-array_lower(attrnums,1),0)
-                                from
+                                FROM
                                     gp_distribution_policy
-                            ) as d(relid, attrnums, attrcnt)
-                        where
-                            g.g < k.partkeylen and
+                            ) AS d(relid, attrnums, attrcnt)
+                        WHERE
+                            g.g < k.partkeylen AND
                             k.tableid = d.relid
-                        group by
+                        GROUP BY
                             k.tableid,
                             d.attrcnt,
                             d.attrnums
-                    ) as k(tableid, distkeylen, distkey, partkeylen, partkey) ,
+                    ) AS k(tableid, distkeylen, distkey, partkeylen, partkey) ,
                     (
-                        select
+                        SELECT
                             relid,
                             conid,
                             conname,
                             contype,
                             indexid
-                        from
+                        FROM
                             (
-                                select
-                                    r.oid::regclass as relid,
-                                    c.oid as conid,
+                                SELECT
+                                    r.oid::REGCLASS AS relid,
+                                    c.oid AS conid,
                                     c.conname,
                                     c.contype,
                                     c.consrc,
-                                    pg_get_constraintdef(c.oid) as condef,
-                                    d.objid::regclass as indexid
-                                from
+                                    pg_get_constraintdef(c.oid) AS condef,
+                                    d.objid::REGCLASS AS indexid
+                                FROM
                                     (
                                         pg_class r
-                                            join
+                                            JOIN
                                             pg_constraint c
-                                            on
+                                            ON
                                                 r.oid = c.conrelid
-                                                and r.relkind = 'r'
+                                                AND r.relkind = 'r'
                                     )
-                                        left join
+                                        LEFT JOIN
                                         pg_depend d
-                                        on
+                                        ON
                                             d.refobjid = c.oid
-                                            and d.classid = 'pg_class'::regclass
-                                            and d.refclassid = 'pg_constraint'::regclass
-                                            and d.deptype = 'i'
-                                ) as relconstraint(relid, conid, conname, contype, consrc, condef, indexid)
-                        where
-                            indexid is not null
-                            or contype in ('p', 'u')
-                    ) as c(relid, conid, conname, contype, indexid)
-                where
-                    c.relid = k.tableid and
-                    i.indrelid = k.tableid and
-                    i.indexrelid = c.indexid and
-                    not i.indkey::smallint[] @> array_cat(k.distkey, k.partkey)
-            ) as x(tableid, distkey, partkey, conid, conname, contype, indrelid, indkey) ,
+                                            AND d.classid = 'pg_class'::REGCLASS
+                                            AND d.refclassid = 'pg_constraint'::REGCLASS
+                                            AND d.deptype = 'i'
+                                ) AS relconstraint(relid, conid, conname, contype, consrc, condef, indexid)
+                        WHERE
+                            indexid IS NOT NULL
+                            OR contype IN ('p', 'u')
+                    ) AS c(relid, conid, conname, contype, indexid)
+                WHERE
+                    c.relid = k.tableid AND
+                    i.indrelid = k.tableid AND
+                    i.indexrelid = c.indexid AND
+                    NOT i.indkey::SMALLINT[] @> array_cat(k.distkey, k.partkey)
+            ) AS x(tableid, distkey, partkey, conid, conname, contype, indrelid, indkey) ,
             (
-                select
+                SELECT
                     tableid,
                     tabledepth,
-                    tableid::regclass partid,
-                    0 as partdepth,
-                    0 as partordinal,
-                    'r'::char as partstatus
-                from
+                    tableid::REGCLASS partid,
+                    0 AS partdepth,
+                    0 AS partordinal,
+                    'r'::CHAR AS partstatus
+                FROM
                     (
-                        select
-                            parrelid::regclass,
+                        SELECT
+                            parrelid::REGCLASS,
                             max(parlevel)+1
-                        from
+                        FROM
                             pg_partition
-                        group by parrelid
-                    ) as ptable(tableid, tabledepth)
-                union all
-                select
-                    parrelid::regclass as tableid,
-                    t.tabledepth as tabledepth,
-                    r.parchildrelid::regclass partid,
-                    p.parlevel + 1 as partdepth,
-                    r.parruleord as partordinal,
-                    case
-                        when t.tabledepth = p.parlevel + 1 then 'l'::char
-                        else 'i'::char
-                    end as partstatus
-                from
+                        GROUP BY parrelid
+                    ) AS ptable(tableid, tabledepth)
+                UNION ALL
+                SELECT
+                    parrelid::REGCLASS AS tableid,
+                    t.tabledepth AS tabledepth,
+                    r.parchildrelid::REGCLASS partid,
+                    p.parlevel + 1 AS partdepth,
+                    r.parruleord AS partordinal,
+                    CASE
+                        WHEN t.tabledepth = p.parlevel + 1 THEN 'l'::CHAR
+                        ELSE 'i'::CHAR
+                    END AS partstatus
+                FROM
                     pg_partition p,
                     pg_partition_rule r,
                      (
-                        select
-                            parrelid::regclass,
+                        SELECT
+                            parrelid::REGCLASS,
                             max(parlevel)+1
-                        from
+                        FROM
                             pg_partition
-                        group by parrelid
-                    ) as t(tableid, tabledepth)
-                where
+                        GROUP BY parrelid
+                    ) AS t(tableid, tabledepth)
+                WHERE
                     p.oid = r.paroid
-                    and not p.paristemplate
-                    and p.parrelid = t.tableid
-            ) as c(tableid, tabledepth, partid, partdepth, partordinal, partstatus) ,
+                    AND NOT p.paristemplate
+                    AND p.parrelid = t.tableid
+            ) AS c(tableid, tabledepth, partid, partdepth, partordinal, partstatus) ,
             (
-                select
-                    r.oid::regclass as relid,
-                    i.oid::regclass as indexid,
-                    c.oid as conid,
+                SELECT
+                    r.oid::REGCLASS AS relid,
+                    i.oid::REGCLASS AS indexid,
+                    c.oid AS conid,
                     c.contype,
                     c.conname,
-                    pg_get_constraintdef(c.oid) as condef,
+                    pg_get_constraintdef(c.oid) AS condef,
                     d.classid,
                     d.objid,
                     d.objsubid,
@@ -1175,31 +1179,31 @@ partitionRegularityChecks = {
                     d.refobjid,
                     d.refobjsubid,
                     d.deptype
-                from
+                FROM
                     pg_constraint c,
                     pg_class i,
                     pg_depend d,
                     pg_index x,
                     pg_class r
-                where
-                    d.classid = 'pg_class'::regclass and
-                    d.objid = i.oid and
-                    d.objsubid = 0 and
-                    d.refclassid = 'pg_constraint'::regclass and
-                    d.refobjid = c.oid and
-                    d.refobjsubid = 0 and
-                    d.deptype = 'i' and
-                    i.relkind = 'i' and
-                    i.oid = x.indexrelid and
+                WHERE
+                    d.classid = 'pg_class'::REGCLASS AND
+                    d.objid = i.oid AND
+                    d.objsubid = 0 AND
+                    d.refclassid = 'pg_constraint'::REGCLASS AND
+                    d.refobjid = c.oid AND
+                    d.refobjsubid = 0 AND
+                    d.deptype = 'i' AND
+                    i.relkind = 'i' AND
+                    i.oid = x.indexrelid AND
                     r.oid = x.indrelid
-            ) as b(relid, indexid, conid, contype, conname, condef, classid, objid, objsubid, refclassid, refobjid, refobjsubid, deptype)
-        where
-            x.tableid = c.tableid and
-            c.partid = b.relid and
-            b.classid = 'pg_class'::regclass and
-            b.objsubid = 0 and
-            b.refclassid = 'pg_constraint'::regclass and
-            b.refobjsubid = 0 and
+            ) AS b(relid, indexid, conid, contype, conname, condef, classid, objid, objsubid, refclassid, refobjid, refobjsubid, deptype)
+        WHERE
+            x.tableid = c.tableid AND
+            c.partid = b.relid AND
+            b.classid = 'pg_class'::REGCLASS AND
+            b.objsubid = 0 AND
+            b.refclassid = 'pg_constraint'::REGCLASS AND
+            b.refobjsubid = 0 AND
             b.deptype = 'i'""",
 
     # Repair sequence for issues identified by unenforced_constraint_info.
@@ -1289,14 +1293,14 @@ where
     # partconname:  pg_constraint.conname on the part or partitioned table
 
     'fix_ill_named_constraint':
-        """select
+        """SELECT
             tableid,
             tableconname,
             partid,
-            partid::int as partrelid,
+            partid::INT AS partrelid,
             partconname
-        from (
-                select
+        FROM (
+                SELECT
                     u.tableid,
                     u.conname,
                     u.contype,
@@ -1304,91 +1308,91 @@ where
                     p.partid,
                     p.conid,
                     coalesce(p.conname)
-                from
+                FROM
                     (
-                        select
+                        SELECT
                             p.tableid,
                             c.conname,
                             c.contype,
-                            pg_get_constraintdef(c.oid) as condef
-                        from
+                            pg_get_constraintdef(c.oid) AS condef
+                        FROM
                             (
-                                select
-                                    parrelid::regclass,
+                                SELECT
+                                    parrelid::REGCLASS,
                                     max(parlevel)+1
-                                from
+                                FROM
                                     pg_partition
-                                group by parrelid
-                            ) as p(tableid, tabledepth) ,
+                                GROUP BY parrelid
+                            ) AS p(tableid, tabledepth) ,
                             pg_constraint c
-                        where
+                        WHERE
                             p.tableid = c.conrelid
-                    ) as u(tableid, conname, contype, condef)
-                        join
+                    ) AS u(tableid, conname, contype, condef)
+                        JOIN
                     (
-                        select
-                            x.tableid::regclass as tableid,
-                            c.conrelid::regclass as partid,
-                            c.oid as conid,
+                        SELECT
+                            x.tableid::REGCLASS AS tableid,
+                            c.conrelid::REGCLASS AS partid,
+                            c.oid AS conid,
                             c.conname,
                             c.contype,
-                            pg_get_constraintdef(c.oid) as condef
-                        from
+                            pg_get_constraintdef(c.oid) AS condef
+                        FROM
                             pg_constraint c,
                             (
-                                select
+                                SELECT
                                     tableid,
                                     tabledepth,
-                                    tableid::regclass partid,
-                                    0 as partdepth,
-                                    0 as partordinal,
-                                    'r'::char as partstatus
-                                from
+                                    tableid::REGCLASS partid,
+                                    0 AS partdepth,
+                                    0 AS partordinal,
+                                    'r'::CHAR AS partstatus
+                                FROM
                                     (
-                                        select
-                                            parrelid::regclass,
+                                        SELECT
+                                            parrelid::REGCLASS,
                                             max(parlevel)+1
-                                        from
+                                        FROM
                                             pg_partition
-                                        group by parrelid
-                                    ) as ptable(tableid, tabledepth)
-                                union all
-                                select
-                                    parrelid::regclass as tableid,
-                                    t.tabledepth as tabledepth,
-                                    r.parchildrelid::regclass partid,
-                                    p.parlevel + 1 as partdepth,
-                                    r.parruleord as partordinal,
-                                    case
-                                        when t.tabledepth = p.parlevel + 1 then 'l'::char
-                                        else 'i'::char
-                                    end as partstatus
-                                from
+                                        GROUP BY parrelid
+                                    ) AS ptable(tableid, tabledepth)
+                                UNION ALL
+                                SELECT
+                                    parrelid::REGCLASS AS tableid,
+                                    t.tabledepth AS tabledepth,
+                                    r.parchildrelid::REGCLASS partid,
+                                    p.parlevel + 1 AS partdepth,
+                                    r.parruleord AS partordinal,
+                                    CASE
+                                        WHEN t.tabledepth = p.parlevel + 1 THEN 'l'::CHAR
+                                        ELSE 'i'::CHAR
+                                    END AS partstatus
+                                FROM
                                     pg_partition p,
                                     pg_partition_rule r,
                                      (
-                                        select
-                                            parrelid::regclass,
+                                        SELECT
+                                            parrelid::REGCLASS,
                                             max(parlevel)+1
-                                        from
+                                        FROM
                                             pg_partition
-                                        group by parrelid
-                                    ) as t(tableid, tabledepth)
-                                where
+                                        GROUP BY parrelid
+                                    ) AS t(tableid, tabledepth)
+                                WHERE
                                     p.oid = r.paroid
-                                    and not p.paristemplate
-                                    and p.parrelid = t.tableid
-                            ) as x(tableid, tabledepth, partid, partdepth, partordinal, partstatus)
-                        where
+                                    AND NOT p.paristemplate
+                                    AND p.parrelid = t.tableid
+                            ) AS x(tableid, tabledepth, partid, partdepth, partordinal, partstatus)
+                        WHERE
                             x.partid = c.conrelid
-                    ) as p(tableid, partid, conid, conname, contype, condef)
-                        on (
-                            u.tableid = p.tableid and
-                            u.contype = p.contype and
+                    ) AS p(tableid, partid, conid, conname, contype, condef)
+                        ON (
+                            u.tableid = p.tableid AND
+                            u.contype = p.contype AND
                             u.condef = p.condef
                             )
-            ) as part_user_constraint(tableid, tableconname, contype, condef, partid, partconid, partconname)
-        where partconname != tableconname""",
+            ) AS part_user_constraint(tableid, tableconname, contype, condef, partid, partconid, partconname)
+        WHERE partconname != tableconname""",
 
     # Query based on view: part_sys_actual
     # tableid
@@ -1396,81 +1400,81 @@ where
     # actual observed number of system-constraints
 
     "actual_part_con_query":
-        """select
+        """SELECT
             tableid,
             partid,
-            count(*) as actual
-        from (
-                select
+            count(*) AS actual
+        FROM (
+                SELECT
                     tableid,
                     partid,
                     conid,
                     conname,
                     contype,
                     condef
-                from (
-                        select
-                            x.tableid::regclass as tableid,
-                            c.conrelid::regclass as partid,
-                            c.oid as conid,
+                FROM (
+                        SELECT
+                            x.tableid::REGCLASS AS tableid,
+                            c.conrelid::REGCLASS AS partid,
+                            c.oid AS conid,
                             c.conname,
                             c.contype,
-                            pg_get_constraintdef(c.oid) as condef
-                        from
+                            pg_get_constraintdef(c.oid) AS condef
+                        FROM
                             pg_constraint c,
                             (
-                                select
+                                SELECT
                                     tableid,
                                     tabledepth,
-                                    tableid::regclass partid,
-                                    0 as partdepth,
-                                    0 as partordinal,
-                                    'r'::char as partstatus
-                                from
+                                    tableid::REGCLASS partid,
+                                    0 AS partdepth,
+                                    0 AS partordinal,
+                                    'r'::CHAR AS partstatus
+                                FROM
                                     (
-                                        select
-                                            parrelid::regclass,
+                                        SELECT
+                                            parrelid::REGCLASS,
                                             max(parlevel)+1
-                                        from
+                                        FROM
                                             pg_partition
-                                        group by parrelid
-                                    ) as ptable(tableid, tabledepth)
-                                union all
-                                select
-                                    parrelid::regclass as tableid,
-                                    t.tabledepth as tabledepth,
-                                    r.parchildrelid::regclass partid,
-                                    p.parlevel + 1 as partdepth,
-                                    r.parruleord as partordinal,
-                                    case
-                                        when t.tabledepth = p.parlevel + 1 then 'l'::char
-                                        else 'i'::char
-                                    end as partstatus
-                                from
+                                        GROUP BY parrelid
+                                    ) AS ptable(tableid, tabledepth)
+                                UNION ALL
+                                SELECT
+                                    parrelid::REGCLASS AS tableid,
+                                    t.tabledepth AS tabledepth,
+                                    r.parchildrelid::REGCLASS partid,
+                                    p.parlevel + 1 AS partdepth,
+                                    r.parruleord AS partordinal,
+                                    CASE
+                                        WHEN t.tabledepth = p.parlevel + 1 THEN 'l'::CHAR
+                                        ELSE 'i'::CHAR
+                                    END AS partstatus
+                                FROM
                                     pg_partition p,
                                     pg_partition_rule r,
                                      (
-                                        select
-                                            parrelid::regclass,
+                                        SELECT
+                                            parrelid::REGCLASS,
                                             max(parlevel)+1
-                                        from
+                                        FROM
                                             pg_partition
-                                        group by parrelid
-                                    ) as t(tableid, tabledepth)
-                                where
+                                        GROUP BY parrelid
+                                    ) AS t(tableid, tabledepth)
+                                WHERE
                                     p.oid = r.paroid
-                                    and not p.paristemplate
-                                    and p.parrelid = t.tableid
-                            ) as x(tableid, tabledepth, partid, partdepth, partordinal, partstatus)
-                        where
+                                    AND NOT p.paristemplate
+                                    AND p.parrelid = t.tableid
+                            ) AS x(tableid, tabledepth, partid, partdepth, partordinal, partstatus)
+                        WHERE
                             x.partid = c.conrelid
-                    ) as part_constraint(tableid, partid, conid, conname, contype, condef)
-                where
-                    (partid, condef) not in
+                    ) AS part_constraint(tableid, partid, conid, conname, contype, condef)
+                WHERE
+                    (partid, condef) NOT IN
                         (
-                            select partid, condef
-                            from (
-                                select
+                            SELECT partid, condef
+                            FROM (
+                                SELECT
                                     u.tableid,
                                     u.conname,
                                     u.contype,
@@ -1478,93 +1482,93 @@ where
                                     p.partid,
                                     p.conid,
                                     coalesce(p.conname)
-                                from
+                                FROM
                                     (
-                                        select
+                                        SELECT
                                             p.tableid,
                                             c.conname,
                                             c.contype,
-                                            pg_get_constraintdef(c.oid) as condef
-                                        from
+                                            pg_get_constraintdef(c.oid) AS condef
+                                        FROM
                                             (
-                                                select
-                                                    parrelid::regclass,
+                                                SELECT
+                                                    parrelid::REGCLASS,
                                                     max(parlevel)+1
-                                                from
+                                                FROM
                                                     pg_partition
-                                                group by parrelid
-                                            ) as p(tableid, tabledepth) ,
+                                                GROUP BY parrelid
+                                            ) AS p(tableid, tabledepth) ,
                                             pg_constraint c
-                                        where
+                                        WHERE
                                             p.tableid = c.conrelid
-                                    ) as u(tableid, conname, contype, condef)
-                                        join
+                                    ) AS u(tableid, conname, contype, condef)
+                                        JOIN
                                     (
-                                        select
-                                            x.tableid::regclass as tableid,
-                                            c.conrelid::regclass as partid,
-                                            c.oid as conid,
+                                        SELECT
+                                            x.tableid::REGCLASS AS tableid,
+                                            c.conrelid::REGCLASS AS partid,
+                                            c.oid AS conid,
                                             c.conname,
                                             c.contype,
-                                            pg_get_constraintdef(c.oid) as condef
-                                        from
+                                            pg_get_constraintdef(c.oid) AS condef
+                                        FROM
                                             pg_constraint c,
                                             (
-                                                select
+                                                SELECT
                                                     tableid,
                                                     tabledepth,
-                                                    tableid::regclass partid,
-                                                    0 as partdepth,
-                                                    0 as partordinal,
-                                                    'r'::char as partstatus
-                                                from
+                                                    tableid::REGCLASS partid,
+                                                    0 AS partdepth,
+                                                    0 AS partordinal,
+                                                    'r'::CHAR AS partstatus
+                                                FROM
                                                     (
-                                                        select
-                                                            parrelid::regclass,
+                                                        SELECT
+                                                            parrelid::REGCLASS,
                                                             max(parlevel)+1
-                                                        from
+                                                        FROM
                                                             pg_partition
-                                                        group by parrelid
-                                                    ) as ptable(tableid, tabledepth)
-                                                union all
-                                                select
-                                                    parrelid::regclass as tableid,
-                                                    t.tabledepth as tabledepth,
-                                                    r.parchildrelid::regclass partid,
-                                                    p.parlevel + 1 as partdepth,
-                                                    r.parruleord as partordinal,
-                                                    case
-                                                        when t.tabledepth = p.parlevel + 1 then 'l'::char
-                                                        else 'i'::char
-                                                    end as partstatus
-                                                from
+                                                        GROUP BY parrelid
+                                                    ) AS ptable(tableid, tabledepth)
+                                                UNION ALL
+                                                SELECT
+                                                    parrelid::REGCLASS AS tableid,
+                                                    t.tabledepth AS tabledepth,
+                                                    r.parchildrelid::REGCLASS partid,
+                                                    p.parlevel + 1 AS partdepth,
+                                                    r.parruleord AS partordinal,
+                                                    CASE
+                                                        WHEN t.tabledepth = p.parlevel + 1 THEN 'l'::CHAR
+                                                        ELSE 'i'::CHAR
+                                                    END AS partstatus
+                                                FROM
                                                     pg_partition p,
                                                     pg_partition_rule r,
                                                      (
-                                                        select
-                                                            parrelid::regclass,
+                                                        SELECT
+                                                            parrelid::REGCLASS,
                                                             max(parlevel)+1
-                                                        from
+                                                        FROM
                                                             pg_partition
-                                                        group by parrelid
-                                                    ) as t(tableid, tabledepth)
-                                                where
+                                                        GROUP BY parrelid
+                                                    ) AS t(tableid, tabledepth)
+                                                WHERE
                                                     p.oid = r.paroid
-                                                    and not p.paristemplate
-                                                    and p.parrelid = t.tableid
-                                            ) as x(tableid, tabledepth, partid, partdepth, partordinal, partstatus)
-                                        where
+                                                    AND NOT p.paristemplate
+                                                    AND p.parrelid = t.tableid
+                                            ) AS x(tableid, tabledepth, partid, partdepth, partordinal, partstatus)
+                                        WHERE
                                             x.partid = c.conrelid
-                                    ) as p(tableid, partid, conid, conname, contype, condef)
-                                        on (
-                                            u.tableid = p.tableid and
-                                            u.contype = p.contype and
+                                    ) AS p(tableid, partid, conid, conname, contype, condef)
+                                        ON (
+                                            u.tableid = p.tableid AND
+                                            u.contype = p.contype AND
                                             u.condef = p.condef
                                             )
-                            ) as part_user_constraint(tableid, tableconname, contype, condef, partid, partconid, partconname)
+                            ) AS part_user_constraint(tableid, tableconname, contype, condef, partid, partconid, partconname)
                         )
-            ) as part_sys_constraint(tableid, partid, conid, conname, contype, condef)
-        group by tableid, partid""",
+            ) AS part_sys_constraint(tableid, partid, conid, conname, contype, condef)
+        GROUP BY tableid, partid""",
 
     # Query contains_directly has a row per step along a path from
     # root to leaf.  The columns are
@@ -1595,12 +1599,12 @@ where
     # or leaf. This is always the first union term.
 
     'base_query':
-        """select
+        """SELECT
             start.tableid,
             start.parentid,
             start.childid,
             start.npcon
-        from
+        FROM
             {contains_directly_start}""",
 
     # A union term is an N-way self join of contains_directly and
@@ -1608,26 +1612,26 @@ where
     # to a part at depth N+1 is N.
 
     'union_term':
-        """select
+        """SELECT
             start.tableid,
             start.parentid,
             stop.childid,
             start.npcon -- stop.npcon
-        from
+        FROM
             {contains_directly_start},
             {contains_directly_stop}{intermediate_path_from}
-        where
-            start.childid {intermediate_path_where}
+        WHERE
+            START.childid {intermediate_path_where}
             = stop.parentid""",
 
     #
 
     'union_query':
-        """select tableid, childid as partid, sum(npcon) as expected
-        from (
+        """SELECT tableid, childid AS partid, sum(npcon) AS expected
+        FROM (
             {open_union}
             ) r
-        group by tableid, childid"""
+        GROUP BY tableid, childid"""
 
 }
 
@@ -1720,7 +1724,7 @@ def checkPartitionRegularity():
             GV.checkStatus = False
             setError(ERROR_NOREPAIR)
             logger.info('[FAIL]  %s' % checkname)
-            logger.error(' %s test has %d issue(s)' % (checkname, len(err)) )
+            logger.error(' %s test has %d issue(s)' % (checkname, len(err)))
             efmt = '  Constraint "%s" of partitioned table "%s" occurs %d times, %d expected.'
             for e in err:
                 logger.error(efmt % e)
@@ -1734,7 +1738,7 @@ def checkPartitionRegularity():
 
     # Determine maximum number of partitioning levels in this database
     try:
-        qry = """select max(parlevel)+1 as maxdepth from pg_partition;"""
+        qry = """SELECT max(parlevel)+1 AS maxdepth FROM pg_partition;"""
         curs = db.query(qry)
         assert len(curs.dictresult()) == 1  # scalar aggregation!
         maxdepth = curs.dictresult()[0]['maxdepth']
@@ -1753,7 +1757,7 @@ def checkPartitionRegularity():
             GV.checkStatus = False
             setError(ERROR_NOREPAIR)
             logger.info('[FAIL]  %s' % checkname)
-            logger.error(' %s test has %d issue(s)' % ( checkname, len(err)) )
+            logger.error(' %s test has %d issue(s)' % (checkname, len(err)))
             efmt = '  Part table "%s" of partitioned table "%s" has %d system-defined constraints, %d expected.'
             for e in err:
                 logger.error(efmt % e)
@@ -1786,7 +1790,7 @@ def checkPartitionRegularity():
                 GV.checkStatus = False
                 setError(ERROR_REMOVE)
                 logger.info('[FAIL]  %s' % checkname)
-                logger.error(' %s test has %d issue(s)' % ( checkname, len(err) ) )
+                logger.error(' %s test has %d issue(s)' % (checkname, len(err)))
                 efmt = '  partitioned table "{tableid}" has unenforced {con_type_phrase} constraint: "{partid}"'
                 repair_fmt = partitionRegularityChecks['unenforced_constraint_repairs']
                 n = 0
@@ -1827,7 +1831,7 @@ def checkPartitionRegularity():
                 GV.checkStatus = False
                 setError(ERROR_REMOVE)
                 logger.info('[FAIL]  %s' % checkname)
-                logger.error(' %s test has %d issue(s)' % ( checkname, len(err) ) )
+                logger.error(' %s test has %d issue(s)' % (checkname, len(err)))
                 efmt = '  part table "%s" has constraint named "%s"; should be "%s"'
                 n = 0
                 for e in err:
@@ -1856,11 +1860,11 @@ def checkPGClass():
     logger.info('-----------------------------------')
     logger.info('Checking pg_class ...')
     qry = '''
-    SELECT relname, relkind, tc.oid as oid,
+    SELECT relname, relkind, tc.oid AS oid,
            reltoastrelid, reltoastidxid
-    FROM   pg_class tc left outer join
-           pg_attribute ta on (tc.oid = ta.attrelid)
-    WHERE  ta.attrelid is NULL
+    FROM   pg_class tc LEFT OUTER JOIN
+           pg_attribute ta ON (tc.oid = ta.attrelid)
+    WHERE  ta.attrelid IS NULL
     '''
     err = connect2run(qry, ('relname', 'relkind', 'oid'))
     if not err:
@@ -1884,16 +1888,16 @@ def checkPGNamespace():
     logger.info('Checking missing schema definitions ...')
     qry = '''
     SELECT o.catalog, o.nsp
-    FROM pg_namespace n right outer join
-         (select 'pg_class' as catalog, relnamespace as nsp from pg_class
-          union
-          select 'pg_type' as catalog, typnamespace as nsp from pg_type
-          union
-          select 'pg_operator' as catalog, oprnamespace as nsp from pg_operator
-          union
-          select 'pg_proc' as catalog,pronamespace as nsp from pg_proc) o on
+    FROM pg_namespace n RIGHT OUTER JOIN
+         (SELECT 'pg_class' AS catalog, relnamespace AS nsp FROM pg_class
+          UNION
+          SELECT 'pg_type' AS catalog, typnamespace AS nsp FROM pg_type
+          UNION
+          SELECT 'pg_operator' AS catalog, oprnamespace AS nsp FROM pg_operator
+          UNION
+          SELECT 'pg_proc' AS catalog,pronamespace AS nsp FROM pg_proc) o ON
           (n.oid = o.nsp)
-    WHERE n.oid is NULL
+    WHERE n.oid IS NULL
     '''
     err = connect2run(qry, ('catalog', 'nsp'))
     if not err:
@@ -1929,13 +1933,13 @@ def removeFastSequence(db):
               SELECT dbid, objid
                 FROM gp_segment_configuration AS cfg JOIN
 			         (SELECT gp_segment_id, objid
-                        FROM (select gp_segment_id, objid from gp_fastsequence
-                              union
-                              select gp_segment_id, objid from gp_dist_random('gp_fastsequence')) AS fs
+                        FROM (SELECT gp_segment_id, objid FROM gp_fastsequence
+                              UNION
+                              SELECT gp_segment_id, objid FROM gp_dist_random('gp_fastsequence')) AS fs
                         LEFT OUTER JOIN
-                             (select oid from pg_class
-                              union
-                              select oid from gp_dist_random('pg_class')) AS c
+                             (SELECT oid FROM pg_class
+                              UNION
+                              SELECT oid FROM gp_dist_random('pg_class')) AS c
                         ON (fs.objid = c.oid)
                         WHERE c.oid IS NULL
                         ) AS r
@@ -2030,6 +2034,7 @@ def drop_leaked_schemas(leaked_schema_dropper, dbname):
     finally:
         db_connection.close()
 
+
 def checkDepend():
     # Check for dependencies on non-existent objects
     logger.info('-----------------------------------')
@@ -2046,6 +2051,7 @@ def checkDepend():
 
     checkDependJoinCatalog(catalogs)
     checkCatalogJoinDepend(catalogs)
+
 
 def checkDependJoinCatalog(catalogs):
     # Construct subquery that will verify that all (classid, objid)
@@ -2103,6 +2109,7 @@ def checkDependJoinCatalog(catalogs):
         myprint("[ERROR] executing test: extra object dependencies")
         myprint("  Execution error: " + str(e))
         myprint(qry)
+
 
 def checkCatalogJoinDepend(catalogs):
     # Construct subqueries to aggregate all OIDs from catalog tables
@@ -2164,6 +2171,7 @@ def checkCatalogJoinDepend(catalogs):
         myprint("  Execution error: " + str(e))
         myprint(qry)
 
+
 def fixupowners(nspname, relname, oldrole, newrole):
     # Must first alter the table to the wrong owner, then back to the right
     # owner.  The purpose of this is that AT doesn't dispatch the change unless
@@ -2199,21 +2207,21 @@ def checkOwners():
     #    to pg_appendonly.
     db = connect2(GV.cfg[1], utilityMode=False)
     qry = '''
-    select distinct n.nspname, coalesce(o.relname, c.relname) as relname,
-                    a.rolname, m.rolname as master_rolname
-    from gp_dist_random('pg_class') r
-      join pg_class c on (c.oid = r.oid)
-      left join pg_appendonly ao on (c.oid = ao.segrelid or
-                                     c.oid = ao.blkdirrelid or
+    SELECT DISTINCT n.nspname, coalesce(o.relname, c.relname) AS relname,
+                    a.rolname, m.rolname AS master_rolname
+    FROM gp_dist_random('pg_class') r
+      JOIN pg_class c ON (c.oid = r.oid)
+      LEFT JOIN pg_appendonly ao ON (c.oid = ao.segrelid OR
+                                     c.oid = ao.blkdirrelid OR
                                      c.oid = ao.blkdiridxid)
-      left join pg_class t on (t.reltoastidxid = c.oid)
-      left join pg_class o on (o.oid = ao.relid or
-                               o.reltoastrelid = t.oid or
+      LEFT JOIN pg_class t ON (t.reltoastidxid = c.oid)
+      LEFT JOIN pg_class o ON (o.oid = ao.relid OR
+                               o.reltoastrelid = t.oid OR
                                o.reltoastrelid = c.oid)
-      join pg_authid a on (a.oid = r.relowner)
-      join pg_authid m on (m.oid = coalesce(o.relowner, c.relowner))
-      join pg_namespace n on (n.oid = coalesce(o.relnamespace, c.relnamespace))
-    where c.relowner <> r.relowner
+      JOIN pg_authid a ON (a.oid = r.relowner)
+      JOIN pg_authid m ON (m.oid = coalesce(o.relowner, c.relowner))
+      JOIN pg_namespace n ON (n.oid = coalesce(o.relnamespace, c.relnamespace))
+    WHERE c.relowner <> r.relowner
     '''
     try:
         curs = db.query(qry)
@@ -2255,13 +2263,13 @@ def checkOwners():
     #    ALTER TYPE.
     db = connect2(GV.cfg[1], utilityMode=False)
     qry = '''
-    select distinct n.nspname, t.typname, a.rolname, m.rolname as master_rolname
-    from gp_dist_random('pg_type') r
-      join pg_type t on (t.oid = r.oid)
-      join pg_namespace n on (n.oid = t.typnamespace)
-      join pg_authid a on (a.oid = r.typowner)
-      join pg_authid m on (m.oid = t.typowner)
-    where r.typowner <> t.typowner
+    SELECT DISTINCT n.nspname, t.typname, a.rolname, m.rolname AS master_rolname
+    FROM gp_dist_random('pg_type') r
+      JOIN pg_type t ON (t.oid = r.oid)
+      JOIN pg_namespace n ON (n.oid = t.typnamespace)
+      JOIN pg_authid a ON (a.oid = r.typowner)
+      JOIN pg_authid m ON (m.oid = t.typowner)
+    WHERE r.typowner <> t.typowner
     '''
     try:
         curs = db.query(qry)
@@ -2331,61 +2339,61 @@ def checkPersistentTables():
     qname = "gp_persistent_filespace_node state check"
     qry = """
     SELECT p.filespace_oid,
-       case when p.persistent_state = 0 then 'free'
-            when p.persistent_state = 1 then 'create pending'
-            when p.persistent_state = 2 then 'created'
-            when p.persistent_state = 3 then 'drop pending'
-            when p.persistent_state = 4 then 'abort create'
-            when p.persistent_state = 5 then 'JIT create pending'
-            when p.persistent_state = 6 then 'bulk load create pending'
-            else 'unknown state: ' || p.persistent_state
-       end as persistent_state,
-       case when p.mirror_existence_state = 0 then 'mirror free'
-             when p.mirror_existence_state = 1 then 'not mirrored'
-             when p.mirror_existence_state = 2 then 'mirror create pending'
-             when p.mirror_existence_state = 3 then 'mirror created'
-             when p.mirror_existence_state = 4 then 'mirror down before create'
-             when p.mirror_existence_state = 5 then 'mirror down during create'
-             when p.mirror_existence_state = 6 then 'mirror drop pending'
-             when p.mirror_existence_state = 7 then 'mirror only drop remains'
-             else 'unknown state: ' || p.mirror_existence_state
-        end as mirror_existence_state
+       CASE WHEN p.persistent_state = 0 THEN 'free'
+            WHEN p.persistent_state = 1 THEN 'create pending'
+            WHEN p.persistent_state = 2 THEN 'created'
+            WHEN p.persistent_state = 3 THEN 'drop pending'
+            WHEN p.persistent_state = 4 THEN 'abort create'
+            WHEN p.persistent_state = 5 THEN 'JIT create pending'
+            WHEN p.persistent_state = 6 THEN 'bulk load create pending'
+            ELSE 'unknown state: ' || p.persistent_state
+       END AS persistent_state,
+       CASE WHEN p.mirror_existence_state = 0 THEN 'mirror free'
+             WHEN p.mirror_existence_state = 1 THEN 'not mirrored'
+             WHEN p.mirror_existence_state = 2 THEN 'mirror create pending'
+             WHEN p.mirror_existence_state = 3 THEN 'mirror created'
+             WHEN p.mirror_existence_state = 4 THEN 'mirror down before create'
+             WHEN p.mirror_existence_state = 5 THEN 'mirror down during create'
+             WHEN p.mirror_existence_state = 6 THEN 'mirror drop pending'
+             WHEN p.mirror_existence_state = 7 THEN 'mirror only drop remains'
+             ELSE 'unknown state: ' || p.mirror_existence_state
+        END AS mirror_existence_state
     FROM gp_persistent_filespace_node p
-    WHERE p.persistent_state not in (0, 2)
-       or p.mirror_existence_state not in (0,1,3)
+    WHERE p.persistent_state NOT IN (0, 2)
+       OR p.mirror_existence_state NOT IN (0,1,3)
     """
     if in_sync:
         queries.append([qname, qry])
 
     qname = "gp_persistent_filespace_node  <=> pg_filespace"
     qry = """
-    SELECT  coalesce(f.oid, p.filespace_oid) as filespace_oid,
-        f.fsname as "filespace"
+    SELECT  coalesce(f.oid, p.filespace_oid) AS filespace_oid,
+        f.fsname AS "filespace"
     FROM (SELECT * FROM gp_persistent_filespace_node
           WHERE persistent_state = 2) p
       FULL OUTER JOIN (SELECT oid, fsname FROM pg_filespace
                        WHERE oid != 3052) f
         ON (p.filespace_oid = f.oid)
-    WHERE  (p.filespace_oid is NULL OR f.oid is NULL)
+    WHERE  (p.filespace_oid IS NULL OR f.oid IS NULL)
     """
     queries.append([qname, qry])
 
     qname = "gp_persistent_filespace_node  <=> gp_global_sequence"
     qry = """
-    SELECT  p.filespace_oid, f.fsname as "filespace",
-        case when p.persistent_state = 0 then 'free'
-             when p.persistent_state = 1 then 'create pending'
-             when p.persistent_state = 2 then 'created'
-             when p.persistent_state = 3 then 'drop pending'
-             when p.persistent_state = 4 then 'abort create'
-             when p.persistent_state = 5 then 'JIT create pending'
-             when p.persistent_state = 6 then 'bulk load create pending'
-             else 'unknown state: ' || p.persistent_state
-        end as persistent_state,
+    SELECT  p.filespace_oid, f.fsname AS "filespace",
+        CASE WHEN p.persistent_state = 0 THEN 'free'
+             WHEN p.persistent_state = 1 THEN 'create pending'
+             WHEN p.persistent_state = 2 THEN 'created'
+             WHEN p.persistent_state = 3 THEN 'drop pending'
+             WHEN p.persistent_state = 4 THEN 'abort create'
+             WHEN p.persistent_state = 5 THEN 'JIT create pending'
+             WHEN p.persistent_state = 6 THEN 'bulk load create pending'
+             ELSE 'unknown state: ' || p.persistent_state
+        END AS persistent_state,
         p.persistent_serial_num, s.sequence_num
     FROM    gp_global_sequence s, gp_persistent_filespace_node p
       LEFT JOIN pg_filespace f ON (f.oid = p.filespace_oid)
-    WHERE   s.ctid = '(0,4)' and p.persistent_serial_num > s.sequence_num
+    WHERE   s.ctid = '(0,4)' AND p.persistent_serial_num > s.sequence_num
     """
     queries.append([qname, qry])
 
@@ -2393,73 +2401,73 @@ def checkPersistentTables():
     qname = "gp_persistent_database_node state check"
     qry = """
     SELECT p.tablespace_oid, p.database_oid,
-       case when p.persistent_state = 0 then 'free'
-            when p.persistent_state = 1 then 'create pending'
-            when p.persistent_state = 2 then 'created'
-            when p.persistent_state = 3 then 'drop pending'
-            when p.persistent_state = 4 then 'abort create'
-            when p.persistent_state = 5 then 'JIT create pending'
-            when p.persistent_state = 6 then 'bulk load create pending'
-            else 'unknown state: ' || p.persistent_state
-       end as persistent_state,
-       case when p.mirror_existence_state = 0 then 'mirror free'
-             when p.mirror_existence_state = 1 then 'not mirrored'
-             when p.mirror_existence_state = 2 then 'mirror create pending'
-             when p.mirror_existence_state = 3 then 'mirror created'
-             when p.mirror_existence_state = 4 then 'mirror down before create'
-             when p.mirror_existence_state = 5 then 'mirror down during create'
-             when p.mirror_existence_state = 6 then 'mirror drop pending'
-             when p.mirror_existence_state = 7 then 'mirror only drop remains'
-             else 'unknown state: ' || p.mirror_existence_state
-        end as mirror_existence_state
+       CASE WHEN p.persistent_state = 0 THEN 'free'
+            WHEN p.persistent_state = 1 THEN 'create pending'
+            WHEN p.persistent_state = 2 THEN 'created'
+            WHEN p.persistent_state = 3 THEN 'drop pending'
+            WHEN p.persistent_state = 4 THEN 'abort create'
+            WHEN p.persistent_state = 5 THEN 'JIT create pending'
+            WHEN p.persistent_state = 6 THEN 'bulk load create pending'
+            ELSE 'unknown state: ' || p.persistent_state
+       END AS persistent_state,
+       CASE WHEN p.mirror_existence_state = 0 THEN 'mirror free'
+             WHEN p.mirror_existence_state = 1 THEN 'not mirrored'
+             WHEN p.mirror_existence_state = 2 THEN 'mirror create pending'
+             WHEN p.mirror_existence_state = 3 THEN 'mirror created'
+             WHEN p.mirror_existence_state = 4 THEN 'mirror down before create'
+             WHEN p.mirror_existence_state = 5 THEN 'mirror down during create'
+             WHEN p.mirror_existence_state = 6 THEN 'mirror drop pending'
+             WHEN p.mirror_existence_state = 7 THEN 'mirror only drop remains'
+             ELSE 'unknown state: ' || p.mirror_existence_state
+        END AS mirror_existence_state
     FROM gp_persistent_database_node p
-    WHERE p.persistent_state not in (0, 2)
-       or p.mirror_existence_state not in (0,1,3)
+    WHERE p.persistent_state NOT IN (0, 2)
+       OR p.mirror_existence_state NOT IN (0,1,3)
     """
     if in_sync:
         queries.append([qname, qry])
 
     qname = "gp_persistent_database_node   <=> pg_database"
     qry = """
-    SELECT coalesce(d.oid, p.database_oid) as database_oid,
-       d.datname as database
+    SELECT coalesce(d.oid, p.database_oid) AS database_oid,
+       d.datname AS database
     FROM (SELECT * FROM gp_persistent_database_node
           WHERE persistent_state = 2) p
       FULL OUTER JOIN pg_database d
         ON (d.oid = p.database_oid)
-    WHERE (d.datname is null or p.database_oid is null)
+    WHERE (d.datname IS NULL OR p.database_oid IS NULL)
     """
     queries.append([qname, qry])
 
     qname = "gp_persistent_database_node   <=> pg_tablespace"
     qry = """
-    SELECT  coalesce(t.oid, p.database_oid) as database_oid,
-        t.spcname as tablespace
+    SELECT  coalesce(t.oid, p.database_oid) AS database_oid,
+        t.spcname AS tablespace
     FROM (SELECT * FROM gp_persistent_database_node
           WHERE persistent_state = 2) p
       LEFT OUTER JOIN (SELECT oid, spcname FROM pg_tablespace
                        WHERE oid != 1664) t
         ON (t.oid = p.tablespace_oid)
-    WHERE  t.spcname is null
+    WHERE  t.spcname IS NULL
     """
     queries.append([qname, qry])
 
     qname = "gp_persistent_database_node   <=> gp_global_sequence"
     qry = """
-    SELECT  p.database_oid, p.tablespace_oid, d.datname as "database",
-        case when p.persistent_state = 0 then 'free'
-             when p.persistent_state = 1 then 'create pending'
-             when p.persistent_state = 2 then 'created'
-             when p.persistent_state = 3 then 'drop pending'
-             when p.persistent_state = 4 then 'abort create'
-             when p.persistent_state = 5 then 'JIT create pending'
-             when p.persistent_state = 6 then 'bulk load create pending'
-             else 'unknown state: ' || p.persistent_state
-        end as persistent_state,
+    SELECT  p.database_oid, p.tablespace_oid, d.datname AS "database",
+        CASE WHEN p.persistent_state = 0 THEN 'free'
+             WHEN p.persistent_state = 1 THEN 'create pending'
+             WHEN p.persistent_state = 2 THEN 'created'
+             WHEN p.persistent_state = 3 THEN 'drop pending'
+             WHEN p.persistent_state = 4 THEN 'abort create'
+             WHEN p.persistent_state = 5 THEN 'JIT create pending'
+             WHEN p.persistent_state = 6 THEN 'bulk load create pending'
+             ELSE 'unknown state: ' || p.persistent_state
+        END AS persistent_state,
         p.persistent_serial_num, s.sequence_num
     FROM    gp_global_sequence s, gp_persistent_database_node p
       LEFT JOIN pg_database d ON (d.oid = p.database_oid)
-    WHERE   s.ctid = '(0,2)' and p.persistent_serial_num > s.sequence_num
+    WHERE   s.ctid = '(0,2)' AND p.persistent_serial_num > s.sequence_num
     """
     queries.append([qname, qry])
 
@@ -2467,72 +2475,72 @@ def checkPersistentTables():
     qname = "gp_persistent_tablespace_node state check"
     qry = """
     SELECT p.filespace_oid, p.tablespace_oid,
-       case when p.persistent_state = 0 then 'free'
-            when p.persistent_state = 1 then 'create pending'
-            when p.persistent_state = 2 then 'created'
-            when p.persistent_state = 3 then 'drop pending'
-            when p.persistent_state = 4 then 'abort create'
-            when p.persistent_state = 5 then 'JIT create pending'
-            when p.persistent_state = 6 then 'bulk load create pending'
-            else 'unknown state: ' || p.persistent_state
-       end as persistent_state,
-       case when p.mirror_existence_state = 0 then 'mirror free'
-             when p.mirror_existence_state = 1 then 'not mirrored'
-             when p.mirror_existence_state = 2 then 'mirror create pending'
-             when p.mirror_existence_state = 3 then 'mirror created'
-             when p.mirror_existence_state = 4 then 'mirror down before create'
-             when p.mirror_existence_state = 5 then 'mirror down during create'
-             when p.mirror_existence_state = 6 then 'mirror drop pending'
-             when p.mirror_existence_state = 7 then 'mirror only drop remains'
-             else 'unknown state: ' || p.mirror_existence_state
-        end as mirror_existence_state
+       CASE WHEN p.persistent_state = 0 THEN 'free'
+            WHEN p.persistent_state = 1 THEN 'create pending'
+            WHEN p.persistent_state = 2 THEN 'created'
+            WHEN p.persistent_state = 3 THEN 'drop pending'
+            WHEN p.persistent_state = 4 THEN 'abort create'
+            WHEN p.persistent_state = 5 THEN 'JIT create pending'
+            WHEN p.persistent_state = 6 THEN 'bulk load create pending'
+            ELSE 'unknown state: ' || p.persistent_state
+       END AS persistent_state,
+       CASE WHEN p.mirror_existence_state = 0 THEN 'mirror free'
+             WHEN p.mirror_existence_state = 1 THEN 'not mirrored'
+             WHEN p.mirror_existence_state = 2 THEN 'mirror create pending'
+             WHEN p.mirror_existence_state = 3 THEN 'mirror created'
+             WHEN p.mirror_existence_state = 4 THEN 'mirror down before create'
+             WHEN p.mirror_existence_state = 5 THEN 'mirror down during create'
+             WHEN p.mirror_existence_state = 6 THEN 'mirror drop pending'
+             WHEN p.mirror_existence_state = 7 THEN 'mirror only drop remains'
+             ELSE 'unknown state: ' || p.mirror_existence_state
+        END AS mirror_existence_state
     FROM gp_persistent_tablespace_node p
-    WHERE p.persistent_state not in (0, 2)
-       or p.mirror_existence_state not in (0,1,3)
+    WHERE p.persistent_state NOT IN (0, 2)
+       OR p.mirror_existence_state NOT IN (0,1,3)
     """
     if in_sync:
         queries.append([qname, qry])
 
     qname = "gp_persistent_tablespace_node <=> pg_tablespace"
     qry = """
-    SELECT  coalesce(t.oid, p.tablespace_oid) as tablespace_oid,
-        t.spcname as tablespace
+    SELECT  coalesce(t.oid, p.tablespace_oid) AS tablespace_oid,
+        t.spcname AS tablespace
     FROM (SELECT * FROM gp_persistent_tablespace_node
           WHERE persistent_state = 2) p
       FULL OUTER JOIN (
-        SELECT oid, spcname FROM pg_tablespace WHERE oid not in (1663, 1664)
+        SELECT oid, spcname FROM pg_tablespace WHERE oid NOT IN (1663, 1664)
       ) t ON (t.oid = p.tablespace_oid)
-    WHERE  t.spcname is null or p.tablespace_oid is null
+    WHERE  t.spcname IS NULL OR p.tablespace_oid IS NULL
     """
     queries.append([qname, qry])
 
     qname = "gp_persistent_tablespace_node <=> pg_filespace"
     qry = """
-    SELECT  p.filespace_oid, f.fsname as "filespace"
+    SELECT  p.filespace_oid, f.fsname AS "filespace"
     FROM (SELECT * FROM gp_persistent_tablespace_node
           WHERE persistent_state = 2) p
       LEFT OUTER JOIN pg_filespace f
         ON (f.oid = p.filespace_oid)
-    WHERE  f.fsname is null
+    WHERE  f.fsname IS NULL
     """
     queries.append([qname, qry])
 
     qname = "gp_persistent_tablespace_node <=> gp_global_sequence"
     qry = """
-    SELECT  p.filespace_oid, p.tablespace_oid, t.spcname as "tablespace",
-        case when p.persistent_state = 0 then 'free'
-             when p.persistent_state = 1 then 'create pending'
-             when p.persistent_state = 2 then 'created'
-             when p.persistent_state = 3 then 'drop pending'
-             when p.persistent_state = 4 then 'abort create'
-             when p.persistent_state = 5 then 'JIT create pending'
-             when p.persistent_state = 6 then 'bulk load create pending'
-             else 'unknown state: ' || p.persistent_state
-        end as persistent_state,
+    SELECT  p.filespace_oid, p.tablespace_oid, t.spcname AS "tablespace",
+        CASE WHEN p.persistent_state = 0 THEN 'free'
+             WHEN p.persistent_state = 1 THEN 'create pending'
+             WHEN p.persistent_state = 2 THEN 'created'
+             WHEN p.persistent_state = 3 THEN 'drop pending'
+             WHEN p.persistent_state = 4 THEN 'abort create'
+             WHEN p.persistent_state = 5 THEN 'JIT create pending'
+             WHEN p.persistent_state = 6 THEN 'bulk load create pending'
+             ELSE 'unknown state: ' || p.persistent_state
+        END AS persistent_state,
         p.persistent_serial_num, s.sequence_num
     FROM    gp_global_sequence s, gp_persistent_tablespace_node p
       LEFT JOIN pg_tablespace t ON (t.oid = p.tablespace_oid)
-    WHERE   s.ctid = '(0,3)' and p.persistent_serial_num > s.sequence_num
+    WHERE   s.ctid = '(0,3)' AND p.persistent_serial_num > s.sequence_num
     """
     queries.append([qname, qry])
 
@@ -2540,29 +2548,29 @@ def checkPersistentTables():
     qname = "gp_persistent_relation_node state check"
     qry = """
     SELECT p.tablespace_oid, p.relfilenode_oid, p.segment_file_num,
-       case when p.persistent_state = 0 then 'free'
-            when p.persistent_state = 1 then 'create pending'
-            when p.persistent_state = 2 then 'created'
-            when p.persistent_state = 3 then 'drop pending'
-            when p.persistent_state = 4 then 'abort create'
-            when p.persistent_state = 5 then 'JIT create pending'
-            when p.persistent_state = 6 then 'bulk load create pending'
-            else 'unknown state: ' || p.persistent_state
-       end as persistent_state,
-       case when p.mirror_existence_state = 0 then 'mirror free'
-             when p.mirror_existence_state = 1 then 'not mirrored'
-             when p.mirror_existence_state = 2 then 'mirror create pending'
-             when p.mirror_existence_state = 3 then 'mirror created'
-             when p.mirror_existence_state = 4 then 'mirror down before create'
-             when p.mirror_existence_state = 5 then 'mirror down during create'
-             when p.mirror_existence_state = 6 then 'mirror drop pending'
-             when p.mirror_existence_state = 7 then 'mirror only drop remains'
-             else 'unknown state: ' || p.mirror_existence_state
-        end as mirror_existence_state
+       CASE WHEN p.persistent_state = 0 THEN 'free'
+            WHEN p.persistent_state = 1 THEN 'create pending'
+            WHEN p.persistent_state = 2 THEN 'created'
+            WHEN p.persistent_state = 3 THEN 'drop pending'
+            WHEN p.persistent_state = 4 THEN 'abort create'
+            WHEN p.persistent_state = 5 THEN 'JIT create pending'
+            WHEN p.persistent_state = 6 THEN 'bulk load create pending'
+            ELSE 'unknown state: ' || p.persistent_state
+       END AS persistent_state,
+       CASE WHEN p.mirror_existence_state = 0 THEN 'mirror free'
+             WHEN p.mirror_existence_state = 1 THEN 'not mirrored'
+             WHEN p.mirror_existence_state = 2 THEN 'mirror create pending'
+             WHEN p.mirror_existence_state = 3 THEN 'mirror created'
+             WHEN p.mirror_existence_state = 4 THEN 'mirror down before create'
+             WHEN p.mirror_existence_state = 5 THEN 'mirror down during create'
+             WHEN p.mirror_existence_state = 6 THEN 'mirror drop pending'
+             WHEN p.mirror_existence_state = 7 THEN 'mirror only drop remains'
+             ELSE 'unknown state: ' || p.mirror_existence_state
+        END AS mirror_existence_state
     FROM gp_persistent_relation_node p
-    WHERE (p.persistent_state not in (0, 2)
-           or p.mirror_existence_state not in (0,1,3))
-      and p.database_oid in (
+    WHERE (p.persistent_state NOT IN (0, 2)
+           OR p.mirror_existence_state NOT IN (0,1,3))
+      AND p.database_oid IN (
         SELECT oid FROM pg_database WHERE datname = current_database()
       )
     """
@@ -2571,17 +2579,17 @@ def checkPersistentTables():
 
     qname = "gp_persistent_relation_node   <=> pg_tablespace"
     qry = """
-    SELECT  distinct p.tablespace_oid
+    SELECT  DISTINCT p.tablespace_oid
     FROM (SELECT * FROM gp_persistent_relation_node
           WHERE persistent_state = 2
-            AND database_oid in (
+            AND database_oid IN (
               SELECT oid FROM pg_database
               WHERE datname = current_database()
               UNION ALL
               SELECT 0)) p
       LEFT OUTER JOIN pg_tablespace t
         ON (t.oid = p.tablespace_oid)
-    WHERE  t.oid is null
+    WHERE  t.oid IS NULL
     """
     queries.append([qname, qry])
 
@@ -2589,14 +2597,14 @@ def checkPersistentTables():
     qry = """
     SELECT  datname, oid, count(*)
     FROM (
-      SELECT  d.datname as datname, p.database_oid as oid
+      SELECT  d.datname AS datname, p.database_oid AS oid
       FROM (SELECT * FROM gp_persistent_relation_node
-            WHERE database_oid != 0 and persistent_state = 2
+            WHERE database_oid != 0 AND persistent_state = 2
            ) p
-        full outer join pg_database d ON (d.oid = p.database_oid)
+        FULL OUTER JOIN pg_database d ON (d.oid = p.database_oid)
     ) x
     GROUP BY 1,2
-    HAVING  datname is null or oid is null or count(*) < 100
+    HAVING  datname IS NULL OR oid IS NULL OR count(*) < 100
     """
     queries.append([qname, qry])
 
@@ -2635,11 +2643,11 @@ def checkPersistentTables():
 
     qname = "gp_persistent_relation_node   <=> pg_class"
     qry = """
-    SELECT  coalesce(p.relfilenode_oid, c.relfilenode) as relfilenode,
+    SELECT  coalesce(p.relfilenode_oid, c.relfilenode) AS relfilenode,
         c.nspname, c.relname, c.relkind, c.relstorage
     FROM (
       SELECT * FROM gp_persistent_relation_node
-      WHERE persistent_state = 2 AND database_oid in (
+      WHERE persistent_state = 2 AND database_oid IN (
         SELECT oid FROM pg_database WHERE datname = current_database()
         UNION ALL
         SELECT 0
@@ -2649,9 +2657,9 @@ def checkPersistentTables():
         SELECT  n.nspname, c.relname, c.relfilenode, c.relstorage, c.relkind
         FROM  pg_class c
           LEFT OUTER JOIN pg_namespace n ON (c.relnamespace = n.oid)
-        WHERE  c.relstorage not in ('v', 'x', 'f')
+        WHERE  c.relstorage NOT IN ('v', 'x', 'f')
       ) c ON (p.relfilenode_oid = c.relfilenode)
-    WHERE  p.relfilenode_oid is NULL OR c.relfilenode is NULL
+    WHERE  p.relfilenode_oid IS NULL OR c.relfilenode IS NULL
     """
     queries.append([qname, qry])
 
@@ -2659,19 +2667,19 @@ def checkPersistentTables():
     qry = """
     SELECT  p.tablespace_oid, p.database_oid, p.relfilenode_oid,
         p.segment_file_num,
-        case when p.persistent_state = 0 then 'free'
-             when p.persistent_state = 1 then 'create pending'
-             when p.persistent_state = 2 then 'created'
-             when p.persistent_state = 3 then 'drop pending'
-             when p.persistent_state = 4 then 'abort create'
-             when p.persistent_state = 5 then 'JIT create pending'
-             when p.persistent_state = 6 then 'bulk load create pending'
-             else 'unknown state: ' || p.persistent_state
-        end as persistent_state,
+        CASE WHEN p.persistent_state = 0 THEN 'free'
+             WHEN p.persistent_state = 1 THEN 'create pending'
+             WHEN p.persistent_state = 2 THEN 'created'
+             WHEN p.persistent_state = 3 THEN 'drop pending'
+             WHEN p.persistent_state = 4 THEN 'abort create'
+             WHEN p.persistent_state = 5 THEN 'JIT create pending'
+             WHEN p.persistent_state = 6 THEN 'bulk load create pending'
+             ELSE 'unknown state: ' || p.persistent_state
+        END AS persistent_state,
         p.persistent_serial_num, s.sequence_num
     FROM    gp_global_sequence s, gp_persistent_relation_node p
       LEFT JOIN pg_tablespace t ON (t.oid = p.tablespace_oid)
-    WHERE   s.ctid = '(0,1)' and p.persistent_serial_num > s.sequence_num
+    WHERE   s.ctid = '(0,1)' AND p.persistent_serial_num > s.sequence_num
     """
     queries.append([qname, qry])
 
@@ -2682,12 +2690,12 @@ def checkPersistentTables():
     # use.  This results in the segment_file_num/relstorage where clause.
     qname = "gp_persistent_relation_node   <=> filesystem"
     qry = """
-    SELECT coalesce(a.tablespace_oid, b.tablespace_oid) as tablespace_oid,
-       coalesce(a.database_oid, b.database_oid) as database_oid,
-       coalesce(a.relfilenode_oid, b.relfilenode_oid) as relfilenode_oid,
-       coalesce(a.segment_file_num, b.segment_file_num) as segment_file_num,
-       a.relfilenode_oid is null as filesystem,
-       b.relfilenode_oid is null as persistent,
+    SELECT coalesce(a.tablespace_oid, b.tablespace_oid) AS tablespace_oid,
+       coalesce(a.database_oid, b.database_oid) AS database_oid,
+       coalesce(a.relfilenode_oid, b.relfilenode_oid) AS relfilenode_oid,
+       coalesce(a.segment_file_num, b.segment_file_num) AS segment_file_num,
+       a.relfilenode_oid IS NULL AS filesystem,
+       b.relfilenode_oid IS NULL AS persistent,
        b.relkind, b.relstorage
     FROM   gp_persistent_relation_node a
     FULL OUTER JOIN (
@@ -2695,14 +2703,14 @@ def checkPersistentTables():
       FROM   gp_persistent_relation_node_check() p
         LEFT OUTER JOIN pg_class c
           ON (p.relfilenode_oid = c.relfilenode)
-      WHERE (p.segment_file_num = 0 or c.relstorage != 'h')
-    ) b ON (a.tablespace_oid   = b.tablespace_oid    and
-            a.database_oid     = b.database_oid      and
-            a.relfilenode_oid  = b.relfilenode_oid   and
+      WHERE (p.segment_file_num = 0 OR c.relstorage != 'h')
+    ) b ON (a.tablespace_oid   = b.tablespace_oid    AND
+            a.database_oid     = b.database_oid      AND
+            a.relfilenode_oid  = b.relfilenode_oid   AND
             a.segment_file_num = b.segment_file_num)
-    WHERE (a.relfilenode_oid is null OR
-	   (a.persistent_state = 2 and b.relfilenode_oid is null))  and
-      coalesce(a.database_oid, b.database_oid) in (
+    WHERE (a.relfilenode_oid IS NULL OR
+	   (a.persistent_state = 2 AND b.relfilenode_oid IS NULL))  AND
+      coalesce(a.database_oid, b.database_oid) IN (
         SELECT oid FROM pg_database WHERE datname = current_database()
         UNION ALL
         SELECT 0
@@ -2718,7 +2726,7 @@ def checkPersistentTables():
     FROM   gp_persistent_relation_node_check() p
       LEFT OUTER JOIN pg_database d
       ON (p.database_oid = d.oid)
-    WHERE  d.oid is null and database_oid != 0
+    WHERE  d.oid IS NULL AND database_oid != 0
     GROUP BY tablespace_oid, database_oid;
     """
     queries.append([qname, qry])
@@ -2796,6 +2804,8 @@ def checkACL():
 
     for cat in sorted(tables):
         checkTableACL(cat)
+
+
 # -------------------------------------------------------------------------------
 
 
@@ -2872,6 +2882,8 @@ def checkTableACL(cat):
         myprint('[ERROR] executing: Cross consistency check for ' + catname)
         myprint('  Execution error: ' + str(e))
         myprint(qry)
+
+
 # -------------------------------------------------------------------------------
 
 
@@ -2894,17 +2906,19 @@ def checkForeignKey(cat_tables=None):
             GV.checkStatus = False
 
         for catname, tuples in foreign_key_issues.iteritems():
-                for pkcatname, fields, results in tuples:
-                    processForeignKeyResult(catname, pkcatname, fields, results)
-                    if catname == 'gp_fastsequence' and pkcatname == 'pg_class':
-                        setError(ERROR_REMOVE)
-                        removeFastSequence(db_connection)
-                    else:
-                        setError(ERROR_NOREPAIR)
+            for pkcatname, fields, results in tuples:
+                processForeignKeyResult(catname, pkcatname, fields, results)
+                if catname == 'gp_fastsequence' and pkcatname == 'pg_class':
+                    setError(ERROR_REMOVE)
+                    removeFastSequence(db_connection)
+                else:
+                    setError(ERROR_NOREPAIR)
     except Exception, ex:
         setError(ERROR_NOREPAIR)
         GV.foreignKeyStatus = False
         myprint('  Execution error: ' + str(ex))
+
+
 # -------------------------------------------------------------------------------
 
 
@@ -2939,6 +2953,8 @@ def _checkAllTablesForMissingEntries():
         # it is used in checkACL and we do not want to modify that functionality
         catalog_issues[(catalog_table_obj, pk_name)] = issues
     return catalog_issues
+
+
 # -------------------------------------------------------------------------------
 
 def checkTableMissingEntry(cat):
@@ -3025,12 +3041,14 @@ def checkMirroringMatching():
         GV.checkStatus = False
         myprint('  Execution error: ' + str(ex))
 
+
 # -------------------------------------------------------------------------------
 
 # Exclude these tuples from the catalog table scan
 # pg_depend: classid 2603 (pg_amproc) is excluded because their OIDs can be
 #            nonsynchronous (catalog.c:RelationNeedsSynchronizedOIDs())
 MISSING_ENTRY_EXCLUDE = {'pg_depend': 'WHERE classid != 2603'}
+
 
 def missingEntryQuery(max_content, catname, pkey, castedPkey):
     # =================
@@ -3429,6 +3447,7 @@ def duplicatePersistentEntryQuery(catname, pkey, excol, state):
           """.format(catalog=catname, pkey=','.join(pkey), excol=excol, state=state, dbname=GV.dbname)
     return qry
 
+
 # -------------------------------------------------------------------------------
 def checkUniqueIndexViolation():
     logger.info('-----------------------------------')
@@ -3445,6 +3464,7 @@ def checkUniqueIndexViolation():
         log_unique_index_violations(violations)
     else:
         logger.info('[OK]  %s' % checkname)
+
 
 def log_unique_index_violations(violations):
     log_output = ['\n    segment_id | index_name | table_name | column_names']
@@ -3618,9 +3638,8 @@ all_checks = {
 }
 
 
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 def listAllChecks():
-
     myprint('\nList of gpcheckcat tests:\n')
     for name in sorted(all_checks, key=lambda x: all_checks[x]["order"]):
         myprint(" %24s: %s" % \
@@ -3628,15 +3647,14 @@ def listAllChecks():
     myprint('')
 
 
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 def runCheckCatname(catalog_table_obj):
-
     checks = {'missing_extraneous': lambda: checkTableMissingEntry(catalog_table_obj),
-             'inconsistent': lambda: checkTableInconsistentEntry(catalog_table_obj),
-             # We assume that everything is passed as a list to checkForeignKey
-             'foreign_key': lambda:  checkForeignKey([catalog_table_obj]),
-             'duplicate': lambda: checkTableDuplicateEntry(catalog_table_obj),
-             'acl': lambda: checkTableACL(catalog_table_obj)}
+              'inconsistent': lambda: checkTableInconsistentEntry(catalog_table_obj),
+              # We assume that everything is passed as a list to checkForeignKey
+              'foreign_key': lambda: checkForeignKey([catalog_table_obj]),
+              'duplicate': lambda: checkTableDuplicateEntry(catalog_table_obj),
+              'acl': lambda: checkTableACL(catalog_table_obj)}
 
     for check in sorted(checks):
         myprint("Performing test '%s' for %s" % (check, catalog_table_obj.getTableName()))
@@ -3650,9 +3668,8 @@ def runCheckCatname(catalog_table_obj):
         myprint("Total runtime for test '%s': %s" % (check, elapsed))
 
 
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 def runOneCheck(name):
-
     if not all_checks.has_key(name):
         logger.info("'%s' is not a valid test" % (name))
         raise LookupError
@@ -3674,7 +3691,7 @@ def runOneCheck(name):
             GV.failedChecks.append(name)
 
 
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 def runAllChecks():
     '''
     perform catalog check for specified database
@@ -3781,8 +3798,10 @@ def checkReindexRepair():
     else:
         return None, None
 
+
 def checkConstraintsRepair():
     do_repair(GV.Constraints, issue_type="removeconstraints", description='Dropping invalid unique constraints')
+
 
 def checkOwnersRepair():
     # Previously we removed duplicate statements from the "Owners" list
@@ -3790,9 +3809,11 @@ def checkOwnersRepair():
     # since the order of items in the list is important for correct results.
     do_repair(GV.Owners, issue_type="fixowner", description='Correcting table ownership')
 
+
 def checkPoliciesRepair():
     # changes to distribution policies
     do_repair(GV.Policies, issue_type="fixdistribution", description='Fixing distribution policies')
+
 
 def checkSegmentRepair(maybeRemove, catmod_guc, seg):
     # dbid.host.port.dbname.timestamp.sql
@@ -3808,9 +3829,9 @@ def checkSegmentRepair(maybeRemove, catmod_guc, seg):
 
     # unique
     lines = set()
-    if GV.Remove.has_key(seg):#foreign_key check
+    if GV.Remove.has_key(seg):  # foreign_key check
         lines = lines.union(GV.Remove[seg])
-    if GV.AdjustConname.has_key(seg):#part_constraint
+    if GV.AdjustConname.has_key(seg):  # part_constraint
         lines = lines.union(GV.AdjustConname[seg])
     if GV.DemoteConstraint.has_key(seg):
         lines = lines.union(GV.DemoteConstraint[seg])
@@ -3995,7 +4016,7 @@ def getResourceTypeOid(oid):
         myprint('  Execution error: ' + str(e))
 
 
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 # Process results of checks (CC and FK) for a particular catalog:
 #   - Categorize entry into GPObject
 #   - Instantiate GPObject if needed
@@ -4155,11 +4176,11 @@ def processForeignKeyResult(catname, pkcatname, colname, allValues):
         if missing_cat == pkcatname:
             existing_cat = fkeytab
 
-        missing_pkeys={gpColName: oid}
-        existing_fkeys=fkeys
+        missing_pkeys = {gpColName: oid}
+        existing_fkeys = fkeys
         if catname == missing_cat:
-            missing_pkeys=fkeys
-            existing_fkeys={gpColName: oid}
+            missing_pkeys = fkeys
+            existing_fkeys = {gpColName: oid}
 
         issue = CatForeignKeyIssue(catname=missing_cat, pkeys=missing_pkeys,
                                    segids=segids, fcatname=existing_cat, fkeys=existing_fkeys)
@@ -4175,6 +4196,7 @@ def processForeignKeyResult(catname, pkcatname, colname, allValues):
         gpObj = getGPObject(oid, rowObjName)
         gpObj.addForeignKeyIssue(issue)
 
+
 def getPrimaryKeyColumn(catname, pknames):
     # We have to look up key to report (pg_pltemplate)
     gpObjName = catname
@@ -4185,6 +4207,7 @@ def getPrimaryKeyColumn(catname, pknames):
     elif 'oid' in pknames:
         gpColName = 'oid'
     return gpObjName, gpColName
+
 
 # -------------------------------------------------------------------------------
 def processACLResult(catname, colname, allValues):
@@ -4347,6 +4370,7 @@ class CatACLIssue:
             myprint('            Exist(s) on %s only: %s ' % \
                     (GV.report_cfg[self.segid]['segname'], self.sacl_only))
 
+
 # -------------------------------------------------------------------------------
 class CatUniqueIndexViolationIssue:
     def __init__(self, table_name, index_name):
@@ -4358,6 +4382,7 @@ class CatUniqueIndexViolationIssue:
             '    Table %s has a violated unique index: %s'
             % (self.catname, self.index_name)
         )
+
 
 class CatDependencyIssue:
     def __init__(self, table_name, oid, content):
@@ -4371,6 +4396,7 @@ class CatDependencyIssue:
             % (self.catname, self.oid, self.content)
         )
 
+
 # -------------------------------------------------------------------------------
 class GPObject:
     def __init__(self, oid, catname):
@@ -4381,7 +4407,7 @@ class GPObject:
         self.duplicateIssues = {}  # key=issue.catname, value=list of catDuplicateIssue
         self.aclIssues = {}  # key=issue.catname, value=list of catACLIssue
         self.foreignkeyIssues = {}  # key=issue.catname, value=list of catForeignKeyIssue
-        self.dependencyIssues = {} # key=issue.catname, value=list of catDependencyIssue
+        self.dependencyIssues = {}  # key=issue.catname, value=list of catDependencyIssue
 
     def addDependencyIssue(self, issue):
         if issue.catname in self.dependencyIssues:
@@ -4485,8 +4511,6 @@ class GPObject:
                         each.report()
             myprint('')
 
-
-
         # Report foreign key issues
         if len(self.foreignkeyIssues):
             for catname, issues in self.foreignkeyIssues.iteritems():
@@ -4516,9 +4540,9 @@ class GPObject:
         # Collect all tables with missing issues for later reporting
         if len(self.missingIssues):
             db = connect2(GV.cfg[1], utilityMode=False)
-            oid_query = "select (select nspname from pg_namespace where oid=relnamespace) || '.' || relname from pg_class where oid=%d"
-            type_query = "select (select nspname from pg_namespace where oid=relnamespace) || '.' || relname from pg_class where reltype=%d"
-            for issues in self.missingIssues.values() :
+            oid_query = "SELECT (SELECT nspname FROM pg_namespace WHERE oid=relnamespace) || '.' || relname FROM pg_class WHERE oid=%d"
+            type_query = "SELECT (SELECT nspname FROM pg_namespace WHERE oid=relnamespace) || '.' || relname FROM pg_class WHERE reltype=%d"
+            for issues in self.missingIssues.values():
                 for issue in issues:
                     # Get schemaname.tablename corresponding to oid
                     for key in issue.pkeys:
@@ -4526,17 +4550,16 @@ class GPObject:
                             table_list = db.query(oid_query % issue.pkeys[key]).getresult()
                             if table_list:
                                 if issue.type == 'missing':
-                                    GV.missing_attr_tables.append( (table_list[0][0], issue.segids) )
+                                    GV.missing_attr_tables.append((table_list[0][0], issue.segids))
                                 else:
-                                    GV.extra_attr_tables.append( (table_list[0][0], issue.segids) )
+                                    GV.extra_attr_tables.append((table_list[0][0], issue.segids))
                         elif key == 'oid':
                             table_list = db.query(type_query % issue.pkeys[key]).getresult()
                             if table_list:
                                 if issue.type == 'missing':
-                                    GV.missing_attr_tables.append( (table_list[0][0], issue.segids) )
+                                    GV.missing_attr_tables.append((table_list[0][0], issue.segids))
                                 else:
-                                    GV.extra_attr_tables.append( (table_list[0][0], issue.segids) )
-
+                                    GV.extra_attr_tables.append((table_list[0][0], issue.segids))
 
     def __cmp__(self, other):
         if isinstance(other, GPObject):
@@ -4736,7 +4759,7 @@ def checkcatReport():
             reportAllIssuesRecursive(child, graph)
 
     buildGraph()
-    reportedCheck = ['duplicate','missing_extraneous','inconsistent','foreign_key','acl', 'duplicate_persistent']
+    reportedCheck = ['duplicate', 'missing_extraneous', 'inconsistent', 'foreign_key', 'acl', 'duplicate_persistent']
     myprint('')
     myprint('SUMMARY REPORT')
     myprint('===================================================================')
@@ -4769,7 +4792,8 @@ def checkcatReport():
         if len(GV.missing_attr_tables) or len(GV.extra_attr_tables):
             # Expand partition tables
             db = connect2(GV.cfg[1], utilityMode=False)
-            parent_tables = [t[0] for t in db.query("SELECT DISTINCT (schemaname || '.' || tablename) FROM pg_partitions").getresult()]
+            parent_tables = [t[0] for t in db.query(
+                "SELECT DISTINCT (schemaname || '.' || tablename) FROM pg_partitions").getresult()]
             partition_leaves_sql = """
             SELECT x.partitionschemaname || '.' || x.partitiontablename
             FROM (
@@ -4792,7 +4816,7 @@ def checkcatReport():
                 for table, segids in GV.missing_attr_tables:
                     if table in parent_tables:
                         for part_table in db.query(partition_leaves_sql).getresult():
-                            GV.missing_attr_tables.append( (part_table[0], segids) )
+                            GV.missing_attr_tables.append((part_table[0], segids))
                 for table, segids in sorted(GV.missing_attr_tables):
                     for id in segids[1:-1].split(','):
                         myprint("        Table %s.%s.%s" % (GV.dbname, table, id))
@@ -4806,7 +4830,7 @@ def checkcatReport():
                 for table, segids in GV.extra_attr_tables:
                     if table in parent_tables:
                         for part_table in db.query(partition_leaves_sql).getresult():
-                            GV.extra_attr_tables.append( (part_table[0], segids) )
+                            GV.extra_attr_tables.append((part_table[0], segids))
                 for table, segids in sorted(GV.extra_attr_tables):
                     for id in segids[1:-1].split(','):
                         myprint("        Table %s.%s.%s" % (GV.dbname, table, id))
@@ -4825,6 +4849,7 @@ def _myprint(str, level=logging.CRITICAL):
 
 myprint = _myprint
 
+
 def generateVerifyFile(catname, fields, results, checkname):
     in_clause = reduce(lambda x, y: x + ('' if not x else ',') + str(y[fields.index('oid')]), results, '')
     verify_sql = '''
@@ -4842,6 +4867,7 @@ def generateVerifyFile(catname, fields, results, checkname):
             fp.write(verify_sql + '\n')
     except Exception as e:
         logger.warning('Unable to generate verify file for %s (%s)' % (catname, str(e)))
+
 
 def truncate_batch_size(primaries):
     if GV.opt['-B'] > primaries:
@@ -4909,6 +4935,7 @@ def main():
             GV.opt['-S'] = "none"
 
     sys.exit(GV.retcode)
+
 
 #############
 if __name__ == '__main__':
