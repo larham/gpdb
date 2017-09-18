@@ -333,8 +333,34 @@ class GpCheckCatTestCase(GpTestCase):
         report_cfg = self.subject.getReportConfiguration()
         self.assertEqual("content -1", report_cfg[-1]['segname'])
 
-    ####################### PRIVATE METHODS #######################
+    def test_check_persistent_when_one_query_fails_will_output_one_failure(self):
+        self.db_connection.query.return_value.getresult.return_value = [[0]]
+        self.subject.GV.opt['-B'] = 1
+        self.is_remainder_case = False
+        self.subject.GV.cfg[2] = dict(hostname='host1', port=123, id=1, address='123', datadir='dir', content=-1,
+                                      dbid=2)
+        self.subject.GV.cfg[3] = dict(hostname='host1', port=123, id=1, address='123', datadir='dir', content=1,
+                                      dbid=3)
 
+        def exec_thread(_, __, qry):
+            result = MagicMock()
+            result.cfg = self.subject.GV.cfg[0]
+            result.error = False
+            if "SELECT coalesce(a.tablespace_oid, b.tablespace_oid) AS tablespace_oid" in qry:
+                result.curs = FakeCursor(my_dict={0: ["avalue"]})
+            else:
+                result.curs = FakeCursor()
+            return result
+
+        with patch('gpcheckcat.ExecThread') as mock_execThread:
+            mock_execThread.side_effect = exec_thread
+
+            self.subject.runOneCheck('persistent')
+            self.subject.logger.info.assert_any_call('[FAIL] gp_persistent_relation_node   <=> filesystem')
+            info_messages = [args[0][0] for args in self.subject.logger.info.call_args_list if "[FAIL]" in args[0][0]]
+            self.assertEquals(len(info_messages), 1)
+
+####################### PRIVATE METHODS #######################
     def _run_batch_size_experiment(self, num_primaries):
         BATCH_SIZE = 4
         self.subject.GV.opt['-B'] = BATCH_SIZE
@@ -358,7 +384,7 @@ class GpCheckCatTestCase(GpTestCase):
                 self.num_joins = 0
                 self.num_starts = 0
 
-        with patch('gpcheckcat.execThread') as mock_execThread:
+        with patch('gpcheckcat.ExecThread') as mock_execThread:
             mock_execThread.return_value.cfg = self.subject.GV.cfg[0]
             mock_execThread.return_value.join.side_effect = count_joins
             mock_execThread.return_value.start.side_effect = count_starts
