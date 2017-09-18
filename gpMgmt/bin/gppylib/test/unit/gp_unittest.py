@@ -71,11 +71,17 @@ skip = unittest.skip
 
 
 class FakeCursor:
-    def __init__(self, my_list=None):
+    def __init__(self, my_list=None, my_dict=None):
+        if my_list and my_dict:
+            raise Exception("expecting EITHER list or dict, but not both")
         self.list = []
         self.rowcount = 0
+        self.dictionary = {}
         if my_list:
             self.set_result_for_testing(my_list)
+        if my_dict:
+            self.dictionary = my_dict
+            self.list = my_dict.values()
 
     def __iter__(self):
         return iter(self.list)
@@ -89,3 +95,15 @@ class FakeCursor:
     def set_result_for_testing(self, result_list):
         self.list = result_list
         self.rowcount = len(result_list)
+
+    def listfields(self):
+        return self.dictionary.keys()
+
+    def dictresult(self):
+        if len(self.dictionary.keys()) > 0:
+            return [self.dictionary]
+        else:
+            return []
+
+    def getresult(self):
+        return [self.list]
