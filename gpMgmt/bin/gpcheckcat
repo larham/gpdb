@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-'''
+"""
 Usage: gpcheckcat [<option>] [dbname]
 
     -?
@@ -16,7 +16,7 @@ Usage: gpcheckcat [<option>] [dbname]
     -R test    : run this particular test
     -C catname : run cross consistency, FK and ACL tests for this catalog table
 
-'''
+"""
 import getopt
 import re
 import sys
@@ -36,6 +36,7 @@ try:
     from gpcheckcat_modules.repair import Repair
     from gpcheckcat_modules.foreign_key_check import ForeignKeyCheck
     from gpcheckcat_modules.mirror_matching_check import MirrorMatchingCheck
+    from gpcheckcat_modules.exec_thread import ExecThread
 
 
 except ImportError, e:
@@ -351,22 +352,6 @@ def connect2(cfgrec, user=None, password=None, database=None, utilityMode=True):
     return conn
 
 
-class execThread(Thread):
-    def __init__(self, cfg, db, qry):
-        self.cfg = cfg
-        self.db = db
-        self.qry = qry
-        self.curs = None
-        self.error = None
-        Thread.__init__(self)
-
-    def run(self):
-        try:
-            self.curs = self.db.query(self.qry)
-        except BaseException, e:
-            self.error = e
-
-
 def processThread(threads):
     batch = []
     for th in threads:
@@ -397,7 +382,7 @@ def connect2run(qry, col=None):
         c = GV.cfg[dbid]
         db = connect2(c)
 
-        thread = execThread(c, db, qry)
+        thread = ExecThread(c, db, qry)
         thread.start()
         logger.debug('launching query thread %s for dbid %i' %
                      (thread.getName(), dbid))
