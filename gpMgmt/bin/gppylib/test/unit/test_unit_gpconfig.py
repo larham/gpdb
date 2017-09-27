@@ -180,15 +180,43 @@ class GpConfig(GpTestCase):
         self.assertIn("Master  value: foo\nSegment value: foo", mock_stdout.getvalue())
 
     @patch('sys.stdout', new_callable=StringIO)
-    def test_option_f_will_report_absence_of_setting(self, mock_stdout):
+    def test_option_f_will_report_absence_of_setting_master(self, mock_stdout):
         sys.argv = ["gpconfig", "--show", "my_property_name", "--file"]
-        self.master_read_config.get_guc_value.return_value = "-"
+        self.master_read_config.get_guc_value.return_value = None
         self.segment_read_config.get_guc_value.return_value = "seg_value"
 
         self.subject.do_main()
 
         self.assertEqual(self.subject.LOGGER.error.call_count, 0)
-        self.assertIn("Master  value: -\nSegment value: seg_value", mock_stdout.getvalue())
+        self.assertIn("Master  value: No value in file\nSegment value: seg_value", mock_stdout.getvalue())
+
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_option_f_will_report_absence_of_setting_seg(self, mock_stdout):
+        sys.argv = ["gpconfig", "--show", "my_property_name", "--file"]
+        self.master_read_config.get_guc_value.return_value = "master_value"
+        self.segment_read_config.get_guc_value.return_value = None
+
+        self.subject.do_main()
+
+        self.assertEqual(self.subject.LOGGER.error.call_count, 0)
+        self.assertIn("Master  value: master_value\nSegment value: No value in file", mock_stdout.getvalue())
+
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_option_f_will_report_absence_of_setting_master_seg_with_mirror(self, mock_stdout):
+        sys.argv = ["gpconfig", "--show", "my_property_name", "--file"]
+        self.master_read_config.get_guc_value.return_value = None
+        self.segment_read_config.get_guc_value.return_value = None
+        # set up the mirror, mirror has same content id as primary, different dbid
+        segment_mirror_read_config = Mock()
+        segment_mirror_read_config.get_seg_content_id.return_value = self.segment_read_config.get_seg_content_id.return_value
+        segment_mirror_read_config.get_seg_dbid.return_value = "123"
+        segment_mirror_read_config.get_guc_value.return_value = None
+        self.pool.getCompletedItems.return_value.append(segment_mirror_read_config)
+
+        self.subject.do_main()
+
+        self.assertEqual(self.subject.LOGGER.error.call_count, 0)
+        self.assertIn("Master  value: No value in file\nSegment value: No value in file", mock_stdout.getvalue())
 
     @patch('sys.stdout', new_callable=StringIO)
     def test_option_f_will_report_difference_segments_out_of_sync(self, mock_stdout):

@@ -73,7 +73,7 @@ class MultiValueGuc(SegmentGuc):
         if self.db_seg_guc:
             result = "%s value: %s | file: %s" % (self.get_label(), self.db_seg_guc.value, self._use_dash_when_none(file_val))
         else:
-            result = "%s value: %s" % (self.get_label(), file_val)
+            result = "%s value: %s" % (self.get_label(), self._transform_none(file_val))
         return result
 
     def report_fail_format(self):
@@ -97,6 +97,9 @@ class MultiValueGuc(SegmentGuc):
     def _use_dash_when_none(self, value):
       return value if value is not None else "-"
 
+    @staticmethod
+    def _transform_none(value):
+        return value if value is not None else "No value in file"
 
     def is_internally_consistent(self):
         if not self.db_seg_guc:
