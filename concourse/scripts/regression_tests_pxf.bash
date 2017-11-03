@@ -2,8 +2,7 @@
 
 set -exo pipefail
 
-CWDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-source "${CWDIR}/common.bash"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 GPHOME="/usr/local/greenplum-db-devel"
 PXF_HOME="${GPHOME}/pxf"
 
