@@ -31,6 +31,9 @@ gpcheckcloud:
 
 install: install-symlink
 
+installcheck:
+	make -C regress installcheck pgxs_dir=$(GPHOME)/lib/postgresql/pgxs
+
 install-symlink:
 	ln -sf gpcloud.so $(pkglibdir)/gps3ext.so
 
