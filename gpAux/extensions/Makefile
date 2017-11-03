@@ -68,13 +68,9 @@ installcheck:
 	if [ -d "$(ext_dir)" ]; then \
 		PATH=$(INSTLOC)/bin:$(PATH) $(MAKE) -C orafce installcheck USE_PGXS=1 && \
 		PATH=$(INSTLOC)/bin:$(PATH) $(MAKE) -C gphdfs installcheck USE_PGXS=1 ; \
-	fi; \
-	if [ "$(enable_mapreduce)" = "yes" ]; then \
-		$(MAKE) -C gpmapreduce installcheck; \
-	fi \
-	if [ "$(enable_gpcloud)" = "yes" ]; then \
-		$(MAKE) -C gpcloud installcheck; \
-    fi
+	fi;
+	if [ "$(enable_mapreduce)" = "yes" ]; then $(MAKE) -C gpmapreduce installcheck; fi
+	if [ "$(enable_gpcloud)" = "yes" ]; then  $(MAKE) -C gpcloud installcheck; fi
 
 unittest-check:
 	@if [ "$(enable_pxf)" = "yes" ]; then \
