@@ -13,3 +13,10 @@ if [ "$OUTPUT" != "1" ]; then
     exit 1
 fi
 
+# open source should not include the proprietary quicklz library. Make sure any attempt to use it will fail.
+psql -U gpadmin testdb -c "CREATE TABLE foo (a int, b text) WITH (appendonly=true, compresstype=quicklz, compresslevel=1);"
+set +e
+quicklz_error=$(psql template1 -c "INSERT INTO foo VALUES (1, 'abc');" 2>&1)
+set -e
+
+exit echo $quicklz_error | grep "quicklz compression not supported"
