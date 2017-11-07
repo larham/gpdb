@@ -40,7 +40,11 @@ override_dh_auto_clean:
     # we can either add a make dependency here, which will cause and orca/configure to happen multiple times,
     # or, since we assume that this build is happening in concourse on a brand new container,
     # we can  make this step into a no-op: the container is clean to begin with.
-	echo "Skipping clean"	
+	echo "Skipping clean, adding repo for g++"
+	apt-get update
+	apt-get install -y software-properties-common
+	add-apt-repository -y ppa:ubuntu-toolchain-r/test
+	apt-get update
 	# Do nothing	
 
 override_dh_gencontrol:
