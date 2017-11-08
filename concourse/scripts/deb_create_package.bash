@@ -4,13 +4,10 @@ set -euxo pipefail
 SRC_DIR=gpdb_src
 
 apt-get update
-apt-get install -y software-properties-common \
-                   vim \
+apt-get install -y vim \
                    debmake \
                    equivs \
                    git
-add-apt-repository -y ppa:ubuntu-toolchain-r/test
-apt-get update
 
 pushd ${SRC_DIR}
     VERSION=`./getversion | tr " " "."`
@@ -25,11 +22,6 @@ set +e
     # processing triggers can result in a non-zero result code
     yes | mk-build-deps -i ${SRC_DIR}/debian/control
 set -e
-
-
-# todo: since we prefer apt-get instead of pip,
-# check if conan authors have released their debian package yet via apt-get: https://www.conan.io/downloads
-pip install conan
 
 pushd ${SRC_DIR}
     dpkg-buildpackage -us -uc -b

@@ -11,12 +11,16 @@ PACKAGE := $(shell cat debian/control | egrep "^Package: " | cut -d " " -f 2)
 include /usr/share/dpkg/default.mk
 
 orca:
+	# ubuntu pip is ancient and problematic to install/upgrade during PPA builds
+	# instead, download it and install it using python
+	wget https://bootstrap.pypa.io/get-pip.py
+	python get-pip.py
+	pip install conan
 	debian/set_conan_remote.bash
-	cd depends && CC=/usr/bin/gcc-6 CXX=/usr/bin/g++-6 conan install --build
+	cd depends && conan install --build
 
 override_dh_auto_configure: orca
-	CC=/usr/bin/gcc-6 CXX=/usr/bin/g++-6 ./configure \
-	   --with-perl --with-python --with-libxml --with-gssapi --prefix=${PWD}/debian/tmp
+	./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=${PWD}/debian/tmp
 
 %:
 	dh $@
@@ -34,6 +38,7 @@ override_dh_auto_install:
 	rm -rf debian/tmp/lib/python/paramiko
 	rm -rf debian/tmp/lib/python/psutil
 	rm -rf debian/tmp/lib/python/yaml
+	# TODO Remove fault injector and other packages
 
 override_dh_auto_clean:
     # since we need orca to build before configuring, and configuring happens before dh_auto_clean,
@@ -42,14 +47,6 @@ override_dh_auto_clean:
     # we can  make this step into a no-op: the container is clean to begin with.
 	echo "Skipping clean"
 	# Do nothing
-
-override_dh_auto_build:
-	echo "adding repo for g++"
-	apt-get update
-	apt-get install -y software-properties-common
-	add-apt-repository -y ppa:ubuntu-toolchain-r/test
-	apt-get update
-	dh_auto_build
 
 override_dh_gencontrol:
 	echo "using version $(VERSION) for binary"
