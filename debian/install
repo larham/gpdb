@@ -1,1 +1,1 @@
-debian/tmp/* /opt/gpdb
+debian/build/* /opt/gpdb
