@@ -11,9 +11,6 @@ one you can use commands like those found in the script used in the build pipeli
 apt-get install -y software-properties-common \
                    debmake \
                    equivs
-                   
-add-apt-repository -y ppa:ubuntu-toolchain-r/test
-apt-get update
 ```
 
 ## Create sample changelog file
@@ -39,10 +36,44 @@ popd
 ```
 ## How to create debian package
 
-Use dpkg utility to create greenplum debian binary
+Use debuild utility to create greenplum debian binary
 
 ```bash
 pushd ~/workspace/gpdb
-    dpkg-buildpackage -uc -us -b
+    debuild -sd -b
 popd
+```
+
+## How to download from the public Greenplum PPA repo
+
+### Using apt-get to install the binary package:
+
+```bash
+# if you are on a macos or platform other than debian, docker can help:
+docker run --rm -it ubuntu /bin/bash
+
+apt-get update
+apt-get install -y software-properties-common
+add-apt-repository ppa:greenplum/db
+apt-get update
+apt-get install -y greenplum-db-oss
+
+source /opt/gpdb/greenplum-path.sh
+echo $GPHOME
+
+# server is NOT running yet--you'll need to configure the cluster, etc.
+```
+
+### Downloading source
+
+```bash
+# if you are on a macos or platform other than debian, docker can help:
+docker run --rm -it ubuntu /bin/bash
+
+apt-get update
+apt-get install -y software-properties-common
+add-apt-repository -s ppa:greenplum/db
+apt-get update
+apt-get install -y greenplum-db-oss
+ls greenplum*
 ```
